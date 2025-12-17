@@ -4,7 +4,7 @@
     <title>F1 NEBULA - GRAND PRIX</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #1a5e1a; font-family: 'Segoe UI', Tahoma, sans-serif; color: white; }
+        body { margin: 0; overflow: hidden; background: #1a5e1a; font-family: 'Arial Black', sans-serif; color: white; }
         canvas { display: block; }
         .overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
         .menu-box { background: #222; padding: 30px; border: 4px solid #fbff00; border-radius: 15px; text-align: center; }
@@ -12,31 +12,31 @@
         
         /* HUD */
         #hud { position: absolute; top: 20px; left: 20px; pointer-events: none; }
-        .stat { background: rgba(0,0,0,0.8); padding: 10px; border-left: 5px solid #fbff00; margin-bottom: 5px; min-width: 150px; }
-        #leaderboard { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); padding: 15px; border: 2px solid #fbff00; }
-        #minimap { position: absolute; bottom: 20px; right: 20px; width: 200px; height: 120px; background: rgba(0,0,0,0.7); border: 2px solid white; }
+        .stat { background: rgba(0,0,0,0.8); padding: 10px; border-left: 5px solid #fbff00; margin-bottom: 5px; min-width: 150px; font-size: 14px; }
+        #leaderboard { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); padding: 15px; border: 2px solid #fbff00; min-width: 200px; }
+        #minimap-container { position: absolute; bottom: 20px; right: 20px; width: 200px; height: 150px; background: rgba(0,0,0,0.8); border: 2px solid white; border-radius: 10px; overflow: hidden; }
         
         /* SEMÁFORO */
-        #lights-container { position: absolute; top: 10%; display: none; gap: 10px; }
-        .light { width: 60px; height: 60px; border-radius: 50%; background: #333; border: 4px solid #111; }
-        .light.red { background: #ff0000; box-shadow: 0 0 20px #ff0000; }
+        #lights-container { position: absolute; top: 15%; display: none; background: #111; padding: 20px; border-radius: 10px; border: 4px solid #333; gap: 15px; }
+        .light { width: 50px; height: 50px; border-radius: 50%; background: #222; border: 3px solid #000; }
+        .light.red { background: #ff0000; box-shadow: 0 0 30px #ff0000; }
     </style>
 </head>
 <body>
 
     <div id="main-menu" class="overlay">
-        <h1>F1 NEBULA</h1>
+        <h1 style="font-size: 60px; color: #fbff00; text-shadow: 4px 4px #000;">F1 NEBULA</h1>
         <div class="menu-box">
-            <button onclick="connect('CREATE')">CREAR SALA</button>
-            <button onclick="connect('JOIN_PROMPT')">UNIRSE</button>
+            <button onclick="connect('CREATE')">CREAR GRAN PREMIO</button>
+            <button onclick="connect('JOIN_PROMPT')">UNIRSE A SALA</button>
         </div>
     </div>
 
     <div id="lobby-menu" class="overlay" style="display:none">
         <div class="menu-box">
-            <h2>SALA: <span id="room-id-txt">---</span></h2>
-            <p>JUGADORES: <span id="y">0</span> / <span id="x">0</span></p>
-            <button id="ready-btn" onclick="sendReady()">EMPEZAR CARRERA</button>
+            <h2 style="color:#fbff00">SALA: <span id="room-id-txt">---</span></h2>
+            <div style="font-size:24px; margin: 20px 0;">PILOTOS: <span id="y">0</span> / <span id="x">0</span></div>
+            <button id="ready-btn" onclick="sendReady()">ESTOY LISTO</button>
         </div>
     </div>
 
@@ -49,17 +49,19 @@
     </div>
 
     <div id="hud" style="display:none">
-        <div class="stat">VEL: <span id="speed">0</span> KM/H</div>
-        <div class="stat">VUELTA: <span id="lap-count">0</span></div>
-        <div class="stat" id="cp-status" style="color: red;">CHECKPOINT: NO</div>
+        <div class="stat">VELOCIDAD: <span id="speed">0</span> KM/H</div>
+        <div class="stat">VUELTAS: <span id="lap-count">0</span></div>
+        <div class="stat" id="cp-status" style="color: #ff4444;">CHECKPOINT: PENDIENTE</div>
     </div>
 
     <div id="leaderboard" style="display:none">
-        <h4 style="margin:0 0 10px 0">CLASIFICACIÓN</h4>
+        <h3 style="margin:0 0 10px 0; color:#fbff00; border-bottom:1px solid #fbff00">POSICIONES</h3>
         <div id="players-list"></div>
     </div>
 
-    <canvas id="minimap"></canvas>
+    <div id="minimap-container">
+        <canvas id="minimap" width="200" height="150"></canvas>
+    </div>
     <canvas id="gameCanvas"></canvas>
 
 <script>
@@ -76,15 +78,16 @@
     let checkpointPassed = false;
     let laps = 0;
     let players = {};
-    let me = { x: 400, y: 2450, speed: 0, vx: 0, vy: 0 };
+    let me = { x: 500, y: 2400, vx: 0, vy: 0 };
     const keys = {};
 
-    // Circuito: Rectángulo redondeado (x, y, ancho, alto, radio curvas)
-    const track = { x: 400, y: 400, w: 2200, h: 2000, r: 400 };
-
     function connect(mode) {
-        if(mode === 'JOIN_PROMPT') roomId = prompt("CÓDIGO:").toUpperCase();
-        else roomId = Math.random().toString(36).substring(2,6).toUpperCase();
+        if(mode === 'JOIN_PROMPT') {
+            roomId = prompt("INTRODUCE CÓDIGO DE SALA:").toUpperCase();
+            if(!roomId) return;
+        } else {
+            roomId = Math.random().toString(36).substring(2,6).toUpperCase();
+        }
         
         socket.emit('join-room', roomId);
         document.getElementById('main-menu').style.display = 'none';
@@ -95,7 +98,8 @@
     function sendReady() {
         socket.emit('player-ready', roomId);
         document.getElementById('ready-btn').disabled = true;
-        document.getElementById('ready-btn').innerText = "ESPERANDO...";
+        document.getElementById('ready-btn').style.background = "#555";
+        document.getElementById('ready-btn').innerText = "ESPERANDO AL RESTO...";
     }
 
     socket.on('update-lobby', data => {
@@ -105,10 +109,12 @@
 
     socket.on('assign-number', num => {
         myNum = num;
-        me.x = 400 + (num * 60); // Alineados en la recta
+        me.x = 500; 
+        me.y = 2300 + (num * 80); // Posición en parrilla
     });
 
-    socket.on('init-race') , () => {
+    // CORRECCIÓN AQUÍ: Quitados los paréntesis que sobraban
+    socket.on('init-race', () => {
         document.getElementById('lobby-menu').style.display = 'none';
         document.getElementById('lights-container').style.display = 'flex';
         document.getElementById('hud').style.display = 'block';
@@ -116,95 +122,130 @@
         raceStarted = true;
         resize();
         loop();
-    };
+    });
 
     socket.on('light', num => {
-        document.getElementById('l' + num).classList.add('red');
+        const l = document.getElementById('l' + num);
+        if(l) l.classList.add('red');
     });
 
     socket.on('start-go', () => {
         document.querySelectorAll('.light').forEach(l => l.classList.remove('red'));
-        setTimeout(() => document.getElementById('lights-container').style.display = 'none', 1000);
         canMove = true;
+        setTimeout(() => document.getElementById('lights-container').style.display = 'none', 2000);
     });
 
-    socket.on('player-moved', data => players[data.id] = data);
+    socket.on('player-moved', data => {
+        players[data.id] = data;
+    });
     
     socket.on('update-leaderboard', list => {
         list.sort((a,b) => b.laps - a.laps);
-        document.getElementById('players-list').innerHTML = list.map(p => `<div>#${p.num}: ${p.laps} vueltas</div>`).join('');
+        document.getElementById('players-list').innerHTML = list.map((p, i) => 
+            `<div style="margin:5px 0">${i+1}. PILOTO #${p.num} - ${p.laps} VTS</div>`
+        ).join('');
     });
 
+    window.addEventListener('resize', resize);
     window.onkeydown = e => keys[e.key.toLowerCase()] = true;
     window.onkeyup = e => keys[e.key.toLowerCase()] = false;
 
-    function loop() {
-        if(canMove) {
-            let accel = 0.2;
-            if(keys['w']) me.vy -= accel;
-            if(keys['s']) me.vy += accel;
-            if(keys['a']) me.vx -= accel;
-            if(keys['d']) me.vx += accel;
-            
-            me.vx *= 0.95; me.vy *= 0.95;
-            me.x += me.vx; me.y += me.vy;
-            
-            // Lógica de Checkpoints (Mitad del circuito aprox x:1500, y:400)
-            if(!checkpointPassed && me.y < 600) {
-                checkpointPassed = true;
-                document.getElementById('cp-status').innerText = "CHECKPOINT: OK";
-                document.getElementById('cp-status').style.color = "#00ff00";
-            }
-            // Meta (x: 400, y: 2400)
-            if(checkpointPassed && me.y > 2300 && me.x < 1000) {
-                checkpointPassed = false;
-                laps++;
-                document.getElementById('lap-count').innerText = laps;
-                document.getElementById('cp-status').innerText = "CHECKPOINT: NO";
-                document.getElementById('cp-status').style.color = "red";
-                socket.emit('lap-completed', { roomId });
-            }
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
 
-            document.getElementById('speed').innerText = Math.floor(Math.sqrt(me.vx**2 + me.vy**2) * 10);
-            socket.emit('move', { roomId, id: socket.id, x: me.x, y: me.y, num: myNum });
+    function loop() {
+        if(raceStarted) {
+            if(canMove) {
+                let accel = 0.25;
+                if(keys['w'] || keys['arrowup']) me.vy -= accel;
+                if(keys['s'] || keys['arrowdown']) me.vy += accel;
+                if(keys['a'] || keys['arrowleft']) me.vx -= accel;
+                if(keys['d'] || keys['arrowright']) me.vx += accel;
+                
+                me.vx *= 0.94; me.vy *= 0.94;
+                me.x += me.vx; me.y += me.vy;
+                
+                // Lógica de Vueltas (Rectángulo 400x400 a 2600x2400)
+                if(!checkpointPassed && me.y < 1000) {
+                    checkpointPassed = true;
+                    document.getElementById('cp-status').innerText = "CHECKPOINT: OK";
+                    document.getElementById('cp-status').style.color = "#00ff00";
+                }
+                
+                if(checkpointPassed && me.y > 2300 && me.x < 1000) {
+                    checkpointPassed = false;
+                    laps++;
+                    document.getElementById('lap-count').innerText = laps;
+                    document.getElementById('cp-status').innerText = "CHECKPOINT: PENDIENTE";
+                    document.getElementById('cp-status').style.color = "#ff4444";
+                    socket.emit('lap-completed', { roomId });
+                }
+
+                document.getElementById('speed').innerText = Math.floor(Math.sqrt(me.vx**2 + me.vy**2) * 15);
+                socket.emit('move', { roomId, id: socket.id, x: me.x, y: me.y, num: myNum });
+            }
+            draw();
+            drawMinimap();
         }
-        draw();
-        drawMinimap();
         requestAnimationFrame(loop);
     }
 
     function draw() {
-        ctx.fillStyle = "#1a5e1a"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle = "#1a5e1a"; 
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        
         ctx.save();
         ctx.translate(canvas.width/2 - me.x, canvas.height/2 - me.y);
 
-        // Circuito Rectangular Redondeado
-        ctx.strokeStyle = "#333"; ctx.lineWidth = 200; ctx.lineJoin = "round";
-        ctx.strokeRect(track.x, track.y, track.w, track.h);
+        // Circuito Rectangular
+        ctx.strokeStyle = "#333";
+        ctx.lineWidth = 250;
+        ctx.lineJoin = "round";
+        ctx.strokeRect(500, 500, 2000, 1800);
         
-        // Meta
-        ctx.fillStyle = "white"; ctx.fillRect(track.x - 100, track.y + track.h, 200, 10);
+        // Línea de Meta
+        ctx.fillStyle = "white";
+        ctx.fillRect(375, 2300, 250, 20);
 
-        // Coches
-        for(let id in players) drawCar(players[id].x, players[id].y, players[id].num, "#ff4444");
+        // Otros jugadores
+        for(let id in players) {
+            drawCar(players[id].x, players[id].y, players[id].num, "#ff4444");
+        }
+        // Mi coche
         drawCar(me.x, me.y, myNum, "#fbff00");
 
         ctx.restore();
     }
 
     function drawCar(x, y, num, color) {
-        ctx.fillStyle = color; ctx.fillRect(x-15, y-10, 30, 20);
-        ctx.fillStyle = "white"; ctx.fillText(num, x-4, y+4);
+        ctx.fillStyle = color;
+        ctx.fillRect(x-20, y-12, 40, 24);
+        ctx.fillStyle = "black";
+        ctx.fillRect(x+10, y-15, 6, 30); // Alerón
+        ctx.fillStyle = "white";
+        ctx.font = "bold 12px Arial";
+        ctx.fillText(num, x-4, y+4);
     }
 
     function drawMinimap() {
-        mctx.clearRect(0,0,200,120);
-        mctx.strokeStyle = "white"; mctx.strokeRect(10, 10, 180, 100);
-        // Yo
-        mctx.fillStyle = "yellow"; mctx.fillRect(10 + (me.x/3000)*180, 10 + (me.y/3000)*100, 4, 4);
+        mctx.fillStyle = "rgba(0,0,0,0.5)";
+        mctx.fillRect(0,0,200,150);
+        mctx.strokeStyle = "white";
+        mctx.lineWidth = 2;
+        mctx.strokeRect(30, 30, 140, 90);
+        
+        // Yo en el minimapa
+        mctx.fillStyle = "#fbff00";
+        mctx.fillRect(30 + (me.x/3500)*140, 30 + (me.y/3000)*90, 6, 6);
+        
+        // Rivales en el minimapa
+        mctx.fillStyle = "#ff4444";
+        for(let id in players) {
+            mctx.fillRect(30 + (players[id].x/3500)*140, 30 + (players[id].y/3000)*90, 5, 5);
+        }
     }
-
-    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 </script>
 </body>
 </html>
