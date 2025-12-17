@@ -1,0 +1,27 @@
+// Cambia la parte de conexión por esto:
+const socket = io(); // Al estar en el mismo server, no necesita IP
+
+function connectToServer(mode) {
+    if (mode === 'CREATE') {
+        myRoomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+    } else {
+        myRoomId = document.getElementById('room-input').value.toUpperCase();
+    }
+    
+    socket.emit('join-room', myRoomId);
+    showLobby();
+}
+
+socket.on('update-lobby', (data) => {
+    updateLobbyUI(data.x, data.y);
+});
+
+socket.on('assign-number', (num) => {
+    playerNumber = num;
+    document.getElementById('player-id').innerText = num;
+});
+
+function sendReady() {
+    socket.emit('player-ready', myRoomId);
+    // ... resto de tu lógica visual del botón
+}
