@@ -1,27 +1,154 @@
-// Cambia la parte de conexión por esto:
-const socket = io(); // Al estar en el mismo server, no necesita IP
+<!DOCTYPE html>
+<html>
+<head>
+    <title>F1 Nebula - REAL ONLINE</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1a5e1a; font-family: 'Arial Black', sans-serif; }
+        canvas { display: block; }
+        .overlay { position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; color: white; text-align: center; }
+        .menu-box { background: #222; padding: 40px; border: 4px solid #fbff00; border-radius: 20px; min-width: 380px; }
+        button { padding: 15px 30px; font-size: 20px; background: #fbff00; border: none; cursor: pointer; font-family: 'Arial Black'; border-radius: 8px; transition: 0.2s; color: black; margin: 10px 0; width: 100%; }
+        button.ready-on { background: #00ff00; }
+        input { padding: 15px; font-size: 20px; border-radius: 8px; border: none; margin-bottom: 10px; text-align: center; width: 80%; }
+        #ready-status { font-size: 32px; background: #111; padding: 15px 25px; border-radius: 10px; margin: 20px 0; border: 2px solid #fbff00; }
+        #info-panel { position: absolute; top: 20px; left: 20px; z-index: 100; display: none; flex-direction: column; gap: 10px; }
+        #lap-counter { background: rgba(0,0,0,0.85); color: #fbff00; padding: 15px 25px; border-radius: 10px; border: 2px solid #fbff00; font-size: 20px; }
+    </style>
+</head>
+<body>
 
-function connectToServer(mode) {
-    if (mode === 'CREATE') {
-        myRoomId = Math.random().toString(36).substring(2, 6).toUpperCase();
-    } else {
-        myRoomId = document.getElementById('room-input').value.toUpperCase();
-    }
+    <div id="main-menu" class="overlay">
+        <h1>F1 NEBULA</h1>
+        <div class="menu-box">
+            <button onclick="connectToServer('CREATE')">1. CREAR SALA</button>
+            <button onclick="showJoinMenu()">2. UNIRSE A SALA</button>
+        </div>
+    </div>
+
+    <div id="join-menu" class="overlay" style="display:none">
+        <div class="menu-box">
+            <h2>CÓDIGO DE SALA</h2>
+            <input type="text" id="room-input" placeholder="CÓDIGO">
+            <button onclick="connectToServer('JOIN')">UNIRSE</button>
+            <button onclick="location.reload()" style="background:#555; color:white">VOLVER</button>
+        </div>
+    </div>
+
+    <div id="lobby-menu" class="overlay" style="display:none">
+        <div class="menu-box">
+            <h2>LOBBY ONLINE</h2>
+            <div style="font-size:24px; color:#fbff00">ID: <span id="display-id">---</span></div>
+            <div id="ready-status">LISTOS: <span id="ready-y">0</span> / <span id="total-x">1</span></div>
+            <button id="ready-btn" onclick="sendReady()">EMPEZAR CARRERA</button>
+        </div>
+    </div>
+
+    <div id="info-panel">
+        <div id="lap-counter">DORSAL: #<span id="player-id">1</span> | VUELTA: <span id="lap-num">0</span></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    const socket = io();
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
     
-    socket.emit('join-room', myRoomId);
-    showLobby();
-}
+    let myRoomId = "";
+    let playerNumber = 1;
+    let iamReady = false;
+    let raceStarted = false;
+    let player = { x: 1200, y: 1000, angle: 0, speed: 0 };
+    const keys = {};
 
-socket.on('update-lobby', (data) => {
-    updateLobbyUI(data.x, data.y);
-});
+    function showJoinMenu() {
+        document.getElementById('main-menu').style.display = 'none';
+        document.getElementById('join-menu').style.display = 'flex';
+    }
 
-socket.on('assign-number', (num) => {
-    playerNumber = num;
-    document.getElementById('player-id').innerText = num;
-});
+    function connectToServer(mode) {
+        if (mode === 'CREATE') {
+            myRoomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+        } else {
+            myRoomId = document.getElementById('room-input').value.toUpperCase();
+        }
+        socket.emit('join-room', myRoomId);
+        document.querySelectorAll('.overlay').forEach(d => d.style.display = 'none');
+        document.getElementById('lobby-menu').style.display = 'flex';
+        document.getElementById('display-id').innerText = myRoomId;
+    }
 
-function sendReady() {
-    socket.emit('player-ready', myRoomId);
-    // ... resto de tu lógica visual del botón
-}
+    socket.on('assign-number', (num) => {
+        playerNumber = num;
+        document.getElementById('player-id').innerText = num;
+    });
+
+    socket.on('update-lobby', (data) => {
+        document.getElementById('total-x').innerText = data.x;
+        document.getElementById('ready-y').innerText = data.y;
+        if (data.y >= data.x && data.x > 0) {
+            setTimeout(startRace, 1000);
+        }
+    });
+
+    function sendReady() {
+        if(iamReady) return;
+        iamReady = true;
+        document.getElementById('ready-btn').innerText = "¡LISTO!";
+        document.getElementById('ready-btn').className = "ready-on";
+        socket.emit('player-ready', myRoomId);
+    }
+
+    function startRace() {
+        document.getElementById('lobby-menu').style.display = 'none';
+        document.getElementById('info-panel').style.display = 'block';
+        raceStarted = true;
+        resize();
+    }
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Lógica simple de movimiento para probar
+    function update() {
+        if (raceStarted) {
+            if (keys['w'] || keys['W']) player.y -= 5;
+            if (keys['s'] || keys['S']) player.y += 5;
+            if (keys['a'] || keys['A']) player.x -= 5;
+            if (keys['d'] || keys['D']) player.x += 5;
+        }
+        draw();
+        requestAnimationFrame(update);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if(!raceStarted) return;
+        
+        ctx.save();
+        ctx.translate(canvas.width/2 - player.x, canvas.height/2 - player.y);
+        
+        // Dibujar circuito simple
+        ctx.strokeStyle = "white"; ctx.lineWidth = 10;
+        ctx.strokeRect(500, 500, 2000, 2000);
+
+        // Mi coche
+        ctx.fillStyle = "#fbff00";
+        ctx.fillRect(player.x - 25, player.y - 15, 50, 30);
+        ctx.fillStyle = "black";
+        ctx.fillText("TÚ (#"+playerNumber+")", player.x - 20, player.y - 20);
+        
+        ctx.restore();
+    }
+
+    window.onkeydown = e => keys[e.key] = true;
+    window.onkeyup = e => keys[e.key] = false;
+    update();
+</script>
+</body>
+</html>
