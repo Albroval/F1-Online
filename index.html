@@ -67,7 +67,7 @@
             </div>
             <div class="car-card" onclick="selectCar('veloz', this)">
                 <h4>SONIC</h4>
-                <p>400km/h Inercia Total</p>
+                <p>400km/h Manejo Total</p>
             </div>
         </div>
 
@@ -120,7 +120,7 @@
         balanceado: { top: 35, accel: 1.2, grassMax: 7.2, color: "#fbff00", turnSens: 0.15 },
         acelerador: { top: 25, accel: 6.0, grassMax: 6.0, color: "#00ccff", turnSens: 0.15 },
         offroad:    { top: 30, accel: 1.0, grassMax: 12.0, color: "#44ff44", turnSens: 0.15 },
-        veloz:      { top: 40, accel: 0.08, grassMax: 5.0, color: "#ff4444", turnSens: 0.45 } // Sonic: Aceleración bajada al mínimo
+        veloz:      { top: 40, accel: 0.08, grassMax: 5.0, color: "#ff4444", turnSens: 1.0 } // Sonic: Giro Instantáneo
     };
     let selectedCarType = "balanceado";
 
@@ -248,7 +248,6 @@
             let stats = CAR_TYPES[selectedCarType];
             let targetMax = player.onGrass ? stats.grassMax : stats.top; 
             
-            // --- RESISTENCIA ULTRABAJA PARA SONIC (0.9995) ---
             let frictionBase = (selectedCarType === 'veloz') ? 0.9995 : 0.992;
             let accel = player.onGrass ? 0.3 : stats.accel;
 
@@ -256,7 +255,6 @@
                 player.velX += inX * accel;
                 player.velY += inY * accel;
             } else {
-                // Al soltar las teclas, Sonic también conserva mucho más la inercia
                 let coasting = (selectedCarType === 'veloz') ? 0.998 : 0.98;
                 player.velX *= coasting;
                 player.velY *= coasting;
