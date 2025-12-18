@@ -1,179 +1,131 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>F1 NEBULA - FIXED</title>
+    <title>F1 NEBULA</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #1a5e1a; font-family: 'Arial Black', sans-serif; }
+        body { margin: 0; overflow: hidden; background: #1a5e1a; font-family: sans-serif; }
         canvas { display: block; }
-        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 200; }
-        .menu-box { background: #222; padding: 40px; border: 4px solid #fbff00; border-radius: 20px; text-align: center; color: white; }
-        button { padding: 15px 30px; font-size: 20px; background: #fbff00; border: none; cursor: pointer; font-weight: bold; margin: 10px; border-radius: 5px; }
-        
-        #lights-container { position: absolute; top: 10%; left: 50%; transform: translateX(-50%); display: none; background: #222; padding: 10px; border-radius: 10px; z-index: 150; }
-        .light { width: 50px; height: 50px; border-radius: 50%; margin: 5px; background: #111; }
-        .red { background: #ff0000; box-shadow: 0 0 20px #ff0000; }
-        .green { background: #00ff00; box-shadow: 0 0 20px #00ff00; }
-
-        #ui-layer { position: absolute; inset: 0; pointer-events: none; display: none; }
-        .stat-card { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); color: #fbff00; padding: 15px; border: 2px solid #fbff00; border-radius: 10px; pointer-events: auto; }
-        #leaderboard { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border: 2px solid #fbff00; width: 200px; }
-        
-        #dashboard { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 200px; height: 100px; background: rgba(0,0,0,0.9); border-radius: 100px 100px 0 0; border: 3px solid #fbff00; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
-        #needle { position: absolute; bottom: 40px; width: 3px; height: 60px; background: red; transform-origin: bottom center; transition: transform 0.1s; }
-        
-        #minimap-container { position: absolute; bottom: 25px; left: 25px; width: 200px; height: 140px; background: rgba(0,0,0,0.8); border: 2px solid #fbff00; }
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; color: white; text-align: center; }
+        button { padding: 15px 30px; font-size: 20px; background: #fbff00; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; margin: 10px; }
+        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+        .hud { position: absolute; background: rgba(0,0,0,0.7); color: #fbff00; padding: 10px; border: 2px solid #fbff00; border-radius: 5px; pointer-events: auto; }
+        #lights { position: absolute; top: 10%; left: 50%; transform: translateX(-50%); display: none; background: #222; padding: 10px; border-radius: 10px; }
+        .light { width: 40px; height: 40px; border-radius: 50%; background: #111; margin: 5px; display: inline-block; }
+        .red { background: #ff0000; box-shadow: 0 0 15px #ff0000; }
+        .green { background: #00ff00; box-shadow: 0 0 15px #00ff00; }
     </style>
 </head>
 <body>
     <div id="overlay">
-        <div class="menu-box">
+        <div>
             <h1>F1 NEBULA</h1>
-            <div id="setup">
-                <button onclick="entrar('CREATE')">CREAR SALA</button>
-                <button onclick="entrar('JOIN')">UNIRSE</button>
-            </div>
-            <div id="lobby" style="display:none">
-                <h2 id="room-code" style="color:#fbff00"></h2>
-                <p>PILOTOS: <span id="p-count">0</span> | LISTOS: <span id="r-count">0</span></p>
-                <button id="ready-btn" onclick="listo()">LISTO</button>
+            <div id="m1"><button onclick="join('CREATE')">NUEVA SALA</button><button onclick="join('JOIN')">UNIRSE</button></div>
+            <div id="m2" style="display:none">
+                <h2 id="code"></h2>
+                <p>PILOTOS: <span id="pc">0</span> | LISTOS: <span id="rc">0</span></p>
+                <button id="rb" onclick="ready()">LISTO</button>
             </div>
         </div>
     </div>
-
-    <div id="lights-container">
+    <div id="lights">
         <div id="l1" class="light"></div><div id="l2" class="light"></div><div id="l3" class="light"></div><div id="l4" class="light"></div><div id="l5" class="light"></div>
     </div>
-
-    <div id="ui-layer">
-        <div class="stat-card">DORSAL: #<span id="my-n">?</span> | VUELTA: <span id="lap">0</span></div>
-        <div id="leaderboard"><b>CLASIFICACIÓN</b><div id="ranks"></div></div>
-        <div id="minimap-container"><canvas id="minimapCanvas" width="200" height="140"></canvas></div>
-        <div id="dashboard"><div id="needle"></div><div id="speed" style="color:#fbff00; font-size:24px;">0</div></div>
+    <div id="ui">
+        <div class="hud" style="top:20px; left:20px;">DORSAL: #<span id="dn">?</span> | VUELTA: <span id="ln">0</span></div>
+        <div id="minimap" style="position:absolute; bottom:20px; left:20px; width:200px; height:150px; background:rgba(0,0,0,0.8); border:2px solid #fbff00;">
+            <canvas id="mCanvas" width="200" height="150"></canvas>
+        </div>
     </div>
-    <canvas id="gameCanvas"></canvas>
+    <canvas id="gCanvas"></canvas>
 
 <script>
     const socket = io();
-    const canvas = document.getElementById('gameCanvas');
+    const canvas = document.getElementById('gCanvas');
     const ctx = canvas.getContext('2d');
-    const mCtx = document.getElementById('minimapCanvas').getContext('2d');
+    const mCanvas = document.getElementById('mCanvas');
+    const mCtx = mCanvas.getContext('2d');
 
-    let room = "", myNum = 0, currentLap = 0, raceStarted = false, canMove = false, checkpoint = false;
-    let players = {}, me = { x: 1450, y: 1200, angle: 0, vx: 0, vy: 0, speed: 0, grass: false };
+    let room = "", myNum = 0, laps = 0, started = false, move = false, chk = false;
+    let players = {}, me = { x: 1450, y: 1200, a: 0, vx: 0, vy: 0, s: 0, g: false };
     const keys = {};
 
-    function entrar(m) {
-        room = m === 'JOIN' ? prompt("CÓDIGO:").toUpperCase() : Math.random().toString(36).substring(2,6).toUpperCase();
+    function join(m) {
+        room = m === 'JOIN' ? prompt("CODIGO:").toUpperCase() : Math.random().toString(36).substring(2,6).toUpperCase();
         if(!room) return;
         socket.emit('join-room', room);
-        document.getElementById('setup').style.display = 'none';
-        document.getElementById('lobby').style.display = 'block';
-        document.getElementById('room-code').innerText = "CÓDIGO: " + room;
+        document.getElementById('m1').style.display = 'none';
+        document.getElementById('m2').style.display = 'block';
+        document.getElementById('code').innerText = "SALA: " + room;
     }
 
-    function listo() {
+    function ready() {
         socket.emit('player-ready', room);
-        document.getElementById('ready-btn').disabled = true;
-        document.getElementById('ready-btn').innerText = "ESPERANDO...";
+        document.getElementById('rb').disabled = true;
     }
 
-    socket.on('update-lobby', d => {
-        document.getElementById('p-count').innerText = d.x;
-        document.getElementById('r-count').innerText = d.y;
-    });
-
-    socket.on('assign-number', n => { myNum = n; document.getElementById('my-n').innerText = n; me.y = 1100 + (n*80); });
-
-    socket.on('init-race', () => {
-        document.getElementById('overlay').style.display = 'none';
-        document.getElementById('lights-container').style.display = 'flex';
-        document.getElementById('ui-layer').style.display = 'block';
-        raceStarted = true;
-    });
-
+    socket.on('update-lobby', d => { document.getElementById('pc').innerText = d.x; document.getElementById('rc').innerText = d.y; });
+    socket.on('assign-number', n => { myNum = n; document.getElementById('dn').innerText = n; me.y = 1100 + (n*100); });
+    socket.on('init-race', () => { document.getElementById('overlay').style.display='none'; document.getElementById('lights').style.display='block'; document.getElementById('ui').style.display='block'; started=true; });
     socket.on('light', n => document.getElementById('l'+n).classList.add('red'));
-    socket.on('start-go', () => {
-        document.querySelectorAll('.light').forEach(l => { l.classList.remove('red'); l.classList.add('green'); });
-        canMove = true;
-        setTimeout(() => document.getElementById('lights-container').style.display = 'none', 2000);
-    });
-
+    socket.on('start-go', () => { document.querySelectorAll('.light').forEach(l=>{l.classList.remove('red'); l.classList.add('green');}); move=true; setTimeout(()=>document.getElementById('lights').style.display='none', 2000); });
     socket.on('player-moved', d => { players[d.id] = d; });
-    socket.on('update-leaderboard', list => {
-        document.getElementById('ranks').innerHTML = list.sort((a,b)=>b.laps - a.laps).map((p,i)=>`<div>${i+1}º #${p.num} - ${p.laps} vtas</div>`).join('');
-    });
 
-    function getPath(c, s = 1) {
+    function getP(c, s=1) {
         const x=1000*s, y=1000*s, w=6000*s, h=4000*s, r=800*s;
-        c.beginPath(); c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
-        c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h); c.lineTo(x+r,y+h);
-        c.quadraticCurveTo(x,y+h,x,y+h-r); c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath();
+        c.beginPath(); c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r); c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h); c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r); c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath();
     }
 
-    function loop() {
-        if (raceStarted && canMove) {
-            let ax = 0, ay = 0;
-            if (keys['w']) ay -= 1; if (keys['s']) ay += 1;
-            if (keys['a']) ax -= 1; if (keys['d']) ax += 1;
+    function update() {
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        if (started && move) {
+            let ax=0, ay=0;
+            if(keys['w']||keys['arrowup']) ay-=1; if(keys['s']||keys['arrowdown']) ay+=1;
+            if(keys['a']||keys['arrowleft']) ax-=1; if(keys['d']||keys['arrowright']) ax+=1;
             
-            let power = me.grass ? 0.2 : 1.0;
-            if(ax||ay) { let m=Math.sqrt(ax*ax+ay*ay); me.vx += (ax/m)*power; me.vy += (ay/m)*power; }
-            
-            me.vx *= 0.96; me.vy *= 0.96;
-            me.speed = Math.sqrt(me.vx*me.vx + me.vy*me.vy);
-            let limit = me.grass ? 10 : 38;
-            if(me.speed > limit) { me.vx *= limit/me.speed; me.vy *= limit/me.speed; }
-            
-            me.x += me.vx; me.y += me.vy;
-            if(!checkpoint && me.x > 5000) checkpoint = true;
-            if(checkpoint && me.x > 1400 && me.x < 1600 && me.y < 1600) { currentLap++; checkpoint = false; document.getElementById('lap').innerText = currentLap; socket.emit('lap-completed', {roomId: room}); }
-            if(me.speed > 0.5) me.angle = Math.atan2(me.vy, me.vx);
-            socket.emit('move', { roomId: room, id: socket.id, x: me.x, y: me.y, angle: me.angle, num: myNum });
+            let p = me.g ? 0.2 : 1.2;
+            if(ax||ay) { let m=Math.sqrt(ax*ax+ay*ay); me.vx+=(ax/m)*p; me.vy+=(ay/m)*p; }
+            me.vx*=0.95; me.vy*=0.95; me.s=Math.sqrt(me.vx*me.vx+me.vy*me.vy);
+            let lim = me.g ? 8 : 40; if(me.s>lim) { me.vx*=lim/me.s; me.vy*=lim/me.s; }
+            me.x+=me.vx; me.y+=me.vy;
+
+            if(!chk && me.x > 5000) chk = true;
+            if(chk && me.x > 1400 && me.x < 1650 && me.y < 1650) { laps++; chk=false; document.getElementById('ln').innerText=laps; socket.emit('lap-completed',{roomId:room}); }
+            if(me.s>0.5) me.a = Math.atan2(me.vy, me.vx);
+            socket.emit('move', {roomId:room, id:socket.id, x:me.x, y:me.y, angle:me.a, num:myNum});
         }
         draw();
-        requestAnimationFrame(loop);
+        requestAnimationFrame(update);
     }
 
     function draw() {
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
         ctx.fillStyle = "#1a5e1a"; ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.save();
-        ctx.translate(canvas.width/2, canvas.height/2);
-        ctx.scale(0.35, 0.35); ctx.translate(-me.x, -me.y);
-        
-        ctx.strokeStyle = "#444"; ctx.lineWidth = 900; getPath(ctx); ctx.stroke();
-        ctx.strokeStyle = "#111"; ctx.lineWidth = 600; getPath(ctx); ctx.stroke();
-        ctx.fillStyle = "white"; ctx.fillRect(1450, 700, 100, 600); // Meta
-
+        ctx.save(); ctx.translate(canvas.width/2, canvas.height/2); ctx.scale(0.3, 0.3); ctx.translate(-me.x, -me.y);
+        ctx.strokeStyle = "#444"; ctx.lineWidth = 900; getP(ctx); ctx.stroke();
+        ctx.strokeStyle = "#111"; ctx.lineWidth = 600; getP(ctx); ctx.stroke();
+        ctx.fillStyle = "white"; ctx.fillRect(1450, 700, 100, 600);
         for(let id in players) drawCar(players[id].x, players[id].y, players[id].angle, players[id].num, "red");
-        drawCar(me.x, me.y, me.angle, myNum, "#fbff00");
+        drawCar(me.x, me.y, me.a, myNum, "#fbff00");
         ctx.restore();
 
-        const p = new Path2D(); getPath(p); ctx.lineWidth = 600;
-        me.grass = !ctx.isPointInStroke(p, me.x, me.y);
-        
-        document.getElementById('speed').innerText = Math.floor(me.speed * 8);
-        document.getElementById('needle').style.transform = `rotate(${-90 + (me.speed*5)}deg)`;
-        
-        // Minimapa
-        mCtx.fillStyle = "black"; mCtx.fillRect(0,0,200,140);
-        mCtx.save(); mCtx.translate(10,10); let s = 0.025;
-        mCtx.strokeStyle = "white"; mCtx.lineWidth = 2; getPath(mCtx, s); mCtx.stroke();
-        mCtx.fillStyle = "yellow"; mCtx.beginPath(); mCtx.arc(me.x*s, me.y*s, 4, 0, 7); mCtx.fill();
-        mCtx.restore();
+        const path = new Path2D(); getP(path);
+        ctx.lineWidth = 600;
+        me.g = !ctx.isPointInStroke(path, me.x, me.y);
+
+        mCtx.fillStyle="black"; mCtx.fillRect(0,0,200,150);
+        mCtx.save(); mCtx.translate(10,10); let s=0.025; mCtx.strokeStyle="white"; getP(mCtx, s); mCtx.stroke();
+        mCtx.fillStyle="yellow"; mCtx.beginPath(); mCtx.arc(me.x*s, me.y*s, 4, 0, 7); mCtx.fill(); mCtx.restore();
     }
 
     function drawCar(x,y,a,n,c) {
         ctx.save(); ctx.translate(x,y); ctx.rotate(a);
         ctx.fillStyle = c; ctx.fillRect(-50,-25,100,50);
-        ctx.fillStyle = "black"; ctx.fillRect(20,-30,15,60); // Aleron
-        ctx.fillStyle = "white"; ctx.font = "bold 25px Arial"; ctx.fillText(n, -10, 10); ctx.restore();
+        ctx.fillStyle = "white"; ctx.fillText(n, -5, 5); ctx.restore();
     }
 
     window.onkeydown = e => keys[e.key.toLowerCase()] = true;
     window.onkeyup = e => keys[e.key.toLowerCase()] = false;
-    loop();
+    update();
 </script>
 </body>
 </html>
