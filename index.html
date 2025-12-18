@@ -29,11 +29,26 @@
     </style>
 </head>
 <body>
-    <div id="overlay">
+<div id="overlay">
+    <div id="menu-login" style="display: flex; flex-direction: column; align-items: center;">
         <h1 style="color: white; margin-bottom: 5px;">F1 NEBULA</h1>
         <p style="color: #fbff00; margin-bottom: 25px;">MULTIJUGADOR ONLINE</p>
-        <button onclick="connectAndStart()">EMPEZAR CARRERA</button>
+        
+        <input type="text" id="room-input" placeholder="CÓDIGO (4 cifras)" maxlength="4" 
+               style="padding: 15px; font-size: 24px; text-align: center; border-radius: 10px; border: 2px solid #fbff00; background: #000; color: white; margin-bottom: 20px; width: 250px; font-family: 'Courier New';">
+        
+        <button onclick="joinLobby()">CONECTAR</button>
     </div>
+
+    <div id="menu-lobby" style="display: none; flex-direction: column; align-items: center;">
+        <h2 id="display-room-name" style="color: #fbff00; font-size: 30px;">SALA: ----</h2>
+        <div style="background: rgba(0,0,0,0.6); padding: 25px; border: 2px solid #fbff00; border-radius: 15px; margin: 20px 0; text-align: center; color: white; min-width: 250px;">
+            <p style="font-size: 20px; margin: 10px 0;">Jugadores: <span id="player-count" style="color: #fbff00;">0/10</span></p>
+            <p style="font-size: 24px; font-weight: bold; margin: 10px 0;">Listos: <span id="ready-count">0</span> / <span id="total-count">0</span></p>
+        </div>
+        <button id="ready-btn" onclick="toggleReady()" style="background: #fbff00; color: black;">¡LISTO!</button>
+    </div>
+</div>
 
     <div id="lights-container">
         <div id="light-r" class="light"></div>
@@ -66,12 +81,50 @@
 
 <script>
     // --- LÓGICA ONLINE ---
-    const socket = io();
-    let currentRoom = "GLOBAL";
+const socket = io();
+    let currentRoom = "";
     let otherPlayers = {};
     let playerNumber = "?";
+    let isReady = false;
 
-function connectAndStart() {
+    // 1. Al dar click en CONECTAR (Menú 1)
+    function joinLobby() {
+        const code = document.getElementById('room-input').value;
+        if (code.length === 4) {
+            currentRoom = code.toUpperCase();
+            document.getElementById('menu-login').style.display = 'none';
+            document.getElementById('menu-lobby').style.display = 'flex';
+            document.getElementById('display-room-name').innerText = "SALA: " + currentRoom;
+            
+            socket.emit('join-room', currentRoom);
+        } else {
+            alert("Introduce un código de 4 cifras");
+        }
+    }
+
+    // 2. Al dar click en ¡LISTO! (Menú 2)
+    function toggleReady() {
+        isReady = !isReady;
+        const btn = document.getElementById('ready-btn');
+        btn.innerText = isReady ? "¡ESPERANDO!" : "¡LISTO!";
+        btn.style.background = isReady ? "#555" : "#fbff00";
+        btn.style.color = isReady ? "white" : "black";
+        
+        socket.emit('toggle-ready', currentRoom);
+    }
+
+    // Actualizar los contadores de la Lobby
+    socket.on('lobby-update', (data) => {
+        document.getElementById('player-count').innerText = `${data.playersInRoom}/10`;
+        document.getElementById('ready-count').innerText = data.readyCount;
+        document.getElementById('total-count').innerText = data.playersInRoom;
+    });
+
+    // Cuando todos están listos, el servidor arranca la carrera
+    socket.on('begin-countdown', () => {
+        document.getElementById('overlay').style.display = 'none';
+        startRaceLocal();
+    });
         const roomInput = prompt("CÓDIGO DE SALA:", "SALA1");
         if (roomInput) {
             currentRoom = roomInput.toUpperCase();
@@ -284,5 +337,6 @@ function connectAndStart() {
 </script>
 </body>
 </html>
+
 
 
