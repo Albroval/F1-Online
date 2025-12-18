@@ -1,7 +1,6 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -16,13 +15,15 @@ io.on('connection', (socket) => {
         if (!rooms[roomId]) {
             rooms[roomId] = { players: {}, readyCount: 0, started: false };
         }
+        // Asignar datos iniciales al jugador
         rooms[roomId].players[socket.id] = { 
             id: socket.id, 
             num: Object.keys(rooms[roomId].players).length + 1,
             laps: 0 
         };
-        const myNum = rooms[roomId].players[socket.id].num;
-        socket.emit('assign-number', myNum);
+        socket.emit('assign-number', rooms[roomId].players[socket.id].num);
+        
+        // Notificar a todos en la sala del nuevo jugador
         io.to(roomId).emit('update-lobby', {
             x: Object.keys(rooms[roomId].players).length,
             y: rooms[roomId].readyCount
@@ -38,25 +39,21 @@ io.on('connection', (socket) => {
             if (rooms[roomId].readyCount === total && total > 0) {
                 rooms[roomId].started = true;
                 io.to(roomId).emit('init-race');
-                setTimeout(() => io.to(roomId).emit('light', 1), 1000);
-                setTimeout(() => io.to(roomId).emit('light', 2), 2000);
-                setTimeout(() => io.to(roomId).emit('light', 3), 3000);
-                setTimeout(() => io.to(roomId).emit('light', 4), 4000);
-                setTimeout(() => io.to(roomId).emit('light', 5), 5000);
-                setTimeout(() => io.to(roomId).emit('start-go'), 7000);
+                // Secuencia de semáforo
+                [1,2,3,4,5].forEach(n => setTimeout(() => io.to(roomId).emit('light', n), n * 1000));
+                setTimeout(() => io.to(roomId).emit('start-go'), 6500);
             }
         }
     });
 
     socket.on('move', (data) => {
-        socket.to(data.roomId).emit('player-moved', data);
+        if (data.roomId) socket.to(data.roomId).emit('player-moved', data);
     });
 
     socket.on('lap-completed', (data) => {
-        const room = rooms[data.roomId];
-        if (room && room.players[socket.id]) {
-            room.players[socket.id].laps++;
-            io.to(data.roomId).emit('update-leaderboard', Object.values(room.players));
+        if (rooms[data.roomId] && rooms[data.roomId].players[socket.id]) {
+            rooms[data.roomId].players[socket.id].laps++;
+            io.to(data.roomId).emit('update-leaderboard', Object.values(rooms[data.roomId].players));
         }
     });
 
@@ -73,5 +70,4 @@ io.on('connection', (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log('Servidor F1 corriendo en puerto ' + PORT));
+server.listen(10000, () => console.log('Servidor F1 Activo'));
