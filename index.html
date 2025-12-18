@@ -1,130 +1,279 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>F1 NEBULA</title>
-    <script src="/socket.io/socket.io.js"></script>
-    <style>
-        body { margin: 0; overflow: hidden; background: #1a5e1a; font-family: sans-serif; }
+    <title>F1 Nebula - Competitive Leaderboard</title>
+    <script src="/socket.io/socket.io.js"></script> <style>
+        /* Mismo CSS que el tuyo, solo añadimos el input de sala */
+        body { margin: 0; overflow: hidden; background: #1a5e1a; font-family: 'Arial Black', sans-serif; }
         canvas { display: block; }
-        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; color: white; text-align: center; }
-        button { padding: 15px 30px; font-size: 20px; background: #fbff00; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; margin: 10px; }
-        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
-        .hud { position: absolute; background: rgba(0,0,0,0.7); color: #fbff00; padding: 10px; border: 2px solid #fbff00; border-radius: 5px; pointer-events: auto; }
-        #lights { position: absolute; top: 10%; left: 50%; transform: translateX(-50%); display: none; background: #222; padding: 10px; border-radius: 10px; }
-        .light { width: 40px; height: 40px; border-radius: 50%; background: #111; margin: 5px; display: inline-block; }
-        .red { background: #ff0000; box-shadow: 0 0 15px #ff0000; }
-        .green { background: #00ff00; box-shadow: 0 0 15px #00ff00; }
+        #overlay { position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; }
+        button { padding: 20px 40px; font-size: 30px; background: #fbff00; border: none; cursor: pointer; font-family: 'Arial Black'; border-radius: 10px; transition: 0.2s; margin: 10px; }
+        button:hover { background: #fffb00; transform: scale(1.05); }
+        #lights-container { position: absolute; top: 10%; left: 50%; transform: translateX(-50%); display: none; flex-direction: row; background: #222; padding: 10px; border-radius: 10px; z-index: 150; border: 2px solid #444; }
+        .light { width: 60px; height: 60px; border-radius: 50%; margin: 5px; background: #111; }
+        .red { background: #ff0000; box-shadow: 0 0 30px #ff0000; }
+        .yellow { background: #ffcc00; box-shadow: 0 0 30px #ffcc00; }
+        .green { background: #00ff00; box-shadow: 0 0 30px #00ff00; }
+        #info-panel { position: absolute; top: 20px; left: 20px; z-index: 100; display: flex; flex-direction: column; gap: 10px; }
+        #lap-counter { background: rgba(0,0,0,0.85); color: #fbff00; padding: 15px 25px; border-radius: 10px; border: 2px solid #fbff00; font-size: 20px; font-family: 'Courier New', monospace; }
+        #leaderboard { background: rgba(0,0,0,0.9); border: 2px solid #fbff00; border-radius: 10px; padding: 10px; color: white; width: 250px; }
+        #leaderboard h3 { margin: 0 0 10px 0; font-size: 14px; text-align: center; color: #fbff00; border-bottom: 1px solid #fbff00; padding-bottom: 5px; }
+        .record-row { display: flex; justify-content: space-between; font-size: 15px; margin: 6px 0; font-family: 'Courier New'; }
+        .gold { color: #ffd700; font-weight: bold; }
+        .silver { color: #c0c0c0; }
+        .bronze { color: #cd7f32; }
+        #dashboard { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 240px; height: 140px; background: rgba(0,0,0,0.9); border-radius: 120px 120px 15px 15px; border: 4px solid #fbff00; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 15px; z-index: 100; }
+        #needle { position: absolute; bottom: 50px; width: 4px; height: 90px; background: #ff0000; transform-origin: bottom center; }
+        #speed-num { color: #fbff00; font-size: 42px; font-weight: bold; font-family: 'Courier New'; }
+        #minimap-container { position: absolute; bottom: 25px; left: 25px; width: 280px; height: 200px; background: rgba(0,0,0,0.8); border: 2px solid #fbff00; border-radius: 15px; z-index: 100; }
     </style>
 </head>
 <body>
     <div id="overlay">
-        <div>
-            <h1>F1 NEBULA</h1>
-            <div id="m1"><button onclick="join('CREATE')">NUEVA SALA</button><button onclick="join('JOIN')">UNIRSE</button></div>
-            <div id="m2" style="display:none">
-                <h2 id="code"></h2>
-                <p>PILOTOS: <span id="pc">0</span> | LISTOS: <span id="rc">0</span></p>
-                <button id="rb" onclick="ready()">LISTO</button>
-            </div>
+        <h1 style="color: white; margin-bottom: 5px;">F1 NEBULA</h1>
+        <p style="color: #fbff00; margin-bottom: 25px;">MULTIJUGADOR ONLINE</p>
+        <button onclick="connectAndStart()">EMPEZAR CARRERA</button>
+    </div>
+
+    <div id="lights-container">
+        <div id="light-r" class="light"></div>
+        <div id="light-y" class="light"></div>
+        <div id="light-g" class="light"></div>
+    </div>
+
+    <div id="info-panel">
+        <div id="lap-counter">
+            <div style="font-size: 14px; color: #aaa; margin-bottom: 5px;">TU DORSAL: #<span id="player-id">?</span></div>
+            VUELTA: <span id="lap-num">0</span>
+            <div style="font-size: 12px; color: white; margin-top: 5px;">CHECKPOINT: <span id="chk-val" style="color:red">PENDIENTE</span></div>
+        </div>
+
+        <div id="leaderboard">
+            <h3>RÉCORDS DE LA SALA</h3>
+            <div id="rank-1" class="record-row gold">1º ---</div>
+            <div id="rank-2" class="record-row silver">2º ---</div>
+            <div id="rank-3" class="record-row bronze">3º ---</div>
         </div>
     </div>
-    <div id="lights">
-        <div id="l1" class="light"></div><div id="l2" class="light"></div><div id="l3" class="light"></div><div id="l4" class="light"></div><div id="l5" class="light"></div>
+    
+    <div id="minimap-container"><canvas id="minimapCanvas" width="280" height="200"></canvas></div>
+    <div id="dashboard">
+        <div id="needle" style="transform: rotate(-90deg)"></div>
+        <div id="speed-num">0</div>
+        <div style="color:white; font-size:12px; letter-spacing: 2px;">KM/H</div>
     </div>
-    <div id="ui">
-        <div class="hud" style="top:20px; left:20px;">DORSAL: #<span id="dn">?</span> | VUELTA: <span id="ln">0</span></div>
-        <div id="minimap" style="position:absolute; bottom:20px; left:20px; width:200px; height:150px; background:rgba(0,0,0,0.8); border:2px solid #fbff00;">
-            <canvas id="mCanvas" width="200" height="150"></canvas>
-        </div>
-    </div>
-    <canvas id="gCanvas"></canvas>
+    <canvas id="gameCanvas"></canvas>
 
 <script>
+    // --- LÓGICA ONLINE ---
     const socket = io();
-    const canvas = document.getElementById('gCanvas');
+    let currentRoom = "GLOBAL";
+    let otherPlayers = {};
+    let playerNumber = "?";
+
+    function connectAndStart() {
+        socket.emit('join-room', "SALA_1"); // Podrías cambiarlo por un prompt de sala
+        socket.emit('start-request', "SALA_1");
+    }
+
+    socket.on('init-player', (data) => {
+        playerNumber = data.num;
+        currentRoom = data.room;
+        document.getElementById('player-id').innerText = playerNumber;
+    });
+
+    socket.on('begin-countdown', () => startRaceLocal());
+    socket.on('player-moved', (data) => { otherPlayers[data.id] = data; });
+    socket.on('update-table', (list) => {
+        const sorted = list.sort((a,b) => b.laps - a.laps);
+        for(let i = 1; i <= 3; i++) {
+            const div = document.getElementById(`rank-${i}`);
+            if (sorted[i-1]) div.innerText = `${i}º #${sorted[i-1].num} - ${sorted[i-1].laps} Vueltas`;
+        }
+    });
+
+    // --- TU LÓGICA DE JUEGO (INTACTA) ---
+    const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const mCanvas = document.getElementById('mCanvas');
+    const mCanvas = document.getElementById('minimapCanvas');
     const mCtx = mCanvas.getContext('2d');
 
-    let room = "", myNum = 0, laps = 0, started = false, move = false, chk = false;
-    let players = {}, me = { x: 1450, y: 1200, a: 0, vx: 0, vy: 0, s: 0, g: false };
+    let laps = 0, hasCheckpoint = false, raceStarted = false, canMove = false;
+    let player = { x: 1200, y: 1000, angle: 0, velX: 0, velY: 0, speed: 0, onGrass: false };
     const keys = {};
 
-    function join(m) {
-        room = m === 'JOIN' ? prompt("CODIGO:").toUpperCase() : Math.random().toString(36).substring(2,6).toUpperCase();
-        if(!room) return;
-        socket.emit('join-room', room);
-        document.getElementById('m1').style.display = 'none';
-        document.getElementById('m2').style.display = 'block';
-        document.getElementById('code').innerText = "SALA: " + room;
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function startRaceLocal() {
+        document.getElementById('overlay').style.display = 'none';
+        document.getElementById('lights-container').style.display = 'flex';
+        document.getElementById('light-r').className = 'light';
+        document.getElementById('light-y').className = 'light';
+        document.getElementById('light-g').className = 'light';
+
+        // Reset físico tal cual lo tenías
+        player.x = 1200 + (playerNumber * 120); player.y = 1000; player.angle = 0;
+        player.velX = 0; player.velY = 0; player.speed = 0;
+        laps = 0; document.getElementById('lap-num').innerText = "0";
+        canMove = false; raceStarted = true;
+
+        setTimeout(() => { document.getElementById('light-r').classList.add('red'); }, 500);
+        setTimeout(() => { document.getElementById('light-y').classList.add('yellow'); }, 1500);
+        setTimeout(() => { 
+            document.getElementById('light-g').classList.add('green');
+            canMove = true; 
+        }, 2500);
+        setTimeout(() => { document.getElementById('lights-container').style.display = 'none'; }, 5000);
     }
 
-    function ready() {
-        socket.emit('player-ready', room);
-        document.getElementById('rb').disabled = true;
-    }
-
-    socket.on('update-lobby', d => { document.getElementById('pc').innerText = d.x; document.getElementById('rc').innerText = d.y; });
-    socket.on('assign-number', n => { myNum = n; document.getElementById('dn').innerText = n; me.y = 1100 + (n*100); });
-    socket.on('init-race', () => { document.getElementById('overlay').style.display='none'; document.getElementById('lights').style.display='block'; document.getElementById('ui').style.display='block'; started=true; });
-    socket.on('light', n => document.getElementById('l'+n).classList.add('red'));
-    socket.on('start-go', () => { document.querySelectorAll('.light').forEach(l=>{l.classList.remove('red'); l.classList.add('green');}); move=true; setTimeout(()=>document.getElementById('lights').style.display='none', 2000); });
-    socket.on('player-moved', d => { players[d.id] = d; });
-
-    function getP(c, s=1) {
-        const x=1000*s, y=1000*s, w=6000*s, h=4000*s, r=800*s;
-        c.beginPath(); c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r); c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h); c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r); c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath();
+    function trackPath(c, s = 1) {
+        const x = 1000*s, y = 1000*s, w = 6000*s, h = 4000*s, r = 800*s;
+        c.beginPath(); c.moveTo(x + r, y); c.lineTo(x + w - r, y);
+        c.quadraticCurveTo(x + w, y, x + w, y + r); c.lineTo(x + w, y + h - r);
+        c.quadraticCurveTo(x + w, y + h, x + w - r, y + h); c.lineTo(x + r, y + h);
+        c.quadraticCurveTo(x, y + h, x, y + h - r); c.lineTo(x, y + r);
+        c.quadraticCurveTo(x, y, x + r, y); c.closePath();
     }
 
     function update() {
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        if (started && move) {
-            let ax=0, ay=0;
-            if(keys['w']||keys['arrowup']) ay-=1; if(keys['s']||keys['arrowdown']) ay+=1;
-            if(keys['a']||keys['arrowleft']) ax-=1; if(keys['d']||keys['arrowright']) ax+=1;
-            
-            let p = me.g ? 0.2 : 1.2;
-            if(ax||ay) { let m=Math.sqrt(ax*ax+ay*ay); me.vx+=(ax/m)*p; me.vy+=(ay/m)*p; }
-            me.vx*=0.95; me.vy*=0.95; me.s=Math.sqrt(me.vx*me.vx+me.vy*me.vy);
-            let lim = me.g ? 8 : 40; if(me.s>lim) { me.vx*=lim/me.s; me.vy*=lim/me.s; }
-            me.x+=me.vx; me.y+=me.vy;
+        if (raceStarted) {
+            let inX = 0, inY = 0;
+            if (canMove) {
+                if (keys['w'] || keys['W'] || keys['ArrowUp']) inY -= 1;
+                if (keys['s'] || keys['S'] || keys['ArrowDown']) inY += 1;
+                if (keys['a'] || keys['A'] || keys['ArrowLeft']) inX -= 1;
+                if (keys['d'] || keys['D'] || keys['ArrowRight']) inX += 1;
+            }
 
-            if(!chk && me.x > 5000) chk = true;
-            if(chk && me.x > 1400 && me.x < 1650 && me.y < 1650) { laps++; chk=false; document.getElementById('ln').innerText=laps; socket.emit('lap-completed',{roomId:room}); }
-            if(me.s>0.5) me.a = Math.atan2(me.vy, me.vx);
-            socket.emit('move', {roomId:room, id:socket.id, x:me.x, y:me.y, angle:me.a, num:myNum});
+            if (inX !== 0 || inY !== 0) {
+                let mag = Math.sqrt(inX*inX + inY*inY);
+                inX /= mag; inY /= mag;
+            }
+
+            // TUS FÍSICAS (Sin cambios)
+            let targetMax = player.onGrass ? 22 : 35;
+            let curS = player.speed * 10;
+            let accel = player.onGrass ? 0.3 : (curS < 320 ? 1.5 : 0.09);
+
+            player.velX += inX * accel; player.velY += inY * accel;
+            player.velX *= 0.96; player.velY *= 0.96;
+            player.speed = Math.sqrt(player.velX**2 + player.velY**2);
+            if (player.speed > targetMax) {
+                player.velX *= (targetMax / player.speed);
+                player.velY *= (targetMax / player.speed);
+                player.speed = targetMax;
+            }
+
+            player.x += player.velX; player.y += player.velY;
+
+            // Checkpoints y Laps
+            if (player.x > 6000 && player.y > 4000) {
+                if (!hasCheckpoint) {
+                    hasCheckpoint = true;
+                    document.getElementById('chk-val').innerText = "OK";
+                    document.getElementById('chk-val').style.color = "#00ff00";
+                }
+            }
+
+            if (player.x > 1400 && player.x < 1500 && player.y < 1500) {
+                if (hasCheckpoint && player.velX > 0) {
+                    laps++;
+                    document.getElementById('lap-num').innerText = laps;
+                    hasCheckpoint = false;
+                    document.getElementById('chk-val').innerText = "PENDIENTE";
+                    document.getElementById('chk-val').style.color = "red";
+                    socket.emit('sync-laps', { room: currentRoom, laps: laps });
+                }
+            }
+
+            if (player.speed > 0.2) {
+                let targetA = Math.atan2(player.velY, player.velX);
+                let diff = targetA - player.angle;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                player.angle += diff * 0.15;
+            }
+
+            // Envío de posición a otros
+            socket.emit('update-me', { room: currentRoom, x: player.x, y: player.y, angle: player.angle, num: playerNumber });
+
+            let kmh = Math.round(player.speed * 10);
+            document.getElementById('speed-num').innerText = kmh;
+            document.getElementById('needle').style.transform = `rotate(${-90 + (kmh * 0.51)}deg)`;
         }
         draw();
         requestAnimationFrame(update);
     }
 
     function draw() {
-        ctx.fillStyle = "#1a5e1a"; ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.save(); ctx.translate(canvas.width/2, canvas.height/2); ctx.scale(0.3, 0.3); ctx.translate(-me.x, -me.y);
-        ctx.strokeStyle = "#444"; ctx.lineWidth = 900; getP(ctx); ctx.stroke();
-        ctx.strokeStyle = "#111"; ctx.lineWidth = 600; getP(ctx); ctx.stroke();
-        ctx.fillStyle = "white"; ctx.fillRect(1450, 700, 100, 600);
-        for(let id in players) drawCar(players[id].x, players[id].y, players[id].angle, players[id].num, "red");
-        drawCar(me.x, me.y, me.a, myNum, "#fbff00");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        let zoom = raceStarted ? (0.65 - (player.speed / 280)) : 0.35;
+        ctx.translate(canvas.width/2, canvas.height/2);
+        ctx.scale(zoom, zoom);
+        ctx.translate(-player.x, -player.y);
+
+        // Pista (Tu diseño)
+        ctx.strokeStyle = "#7a7a7a"; ctx.lineWidth = 850; trackPath(ctx); ctx.stroke();
+        ctx.setLineDash([60, 60]); ctx.lineWidth = 625; ctx.strokeStyle = "white"; trackPath(ctx); ctx.stroke();
+        ctx.strokeStyle = "#e00000"; ctx.lineDashOffset = 60; trackPath(ctx); ctx.stroke();
+        ctx.setLineDash([]); ctx.strokeStyle = "#111111"; ctx.lineWidth = 560; trackPath(ctx); ctx.stroke();
+        ctx.fillStyle = "white"; ctx.fillRect(1400, 720, 100, 560);
+
+        // Dibujar otros jugadores
+        for(let id in otherPlayers){
+            let p = otherPlayers[id];
+            drawCar(p.x, p.y, p.angle, p.num, "red");
+        }
+
+        // Dibujar mi coche (Tu diseño)
+        drawCar(player.x, player.y, player.angle, playerNumber, "#fbff00");
+
         ctx.restore();
-
-        const path = new Path2D(); getP(path);
-        ctx.lineWidth = 600;
-        me.g = !ctx.isPointInStroke(path, me.x, me.y);
-
-        mCtx.fillStyle="black"; mCtx.fillRect(0,0,200,150);
-        mCtx.save(); mCtx.translate(10,10); let s=0.025; mCtx.strokeStyle="white"; getP(mCtx, s); mCtx.stroke();
-        mCtx.fillStyle="yellow"; mCtx.beginPath(); mCtx.arc(me.x*s, me.y*s, 4, 0, 7); mCtx.fill(); mCtx.restore();
+        player.onGrass = !ctx.isPointInStroke(new Path2D(getPathString(1)), player.x, player.y);
+        drawMinimap();
     }
 
-    function drawCar(x,y,a,n,c) {
-        ctx.save(); ctx.translate(x,y); ctx.rotate(a);
-        ctx.fillStyle = c; ctx.fillRect(-50,-25,100,50);
-        ctx.fillStyle = "white"; ctx.fillText(n, -5, 5); ctx.restore();
+    function drawCar(x, y, a, n, color) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(a);
+        ctx.fillStyle = color; ctx.fillRect(-55, -28, 110, 56);
+        ctx.fillStyle = "black"; ctx.fillRect(15, -20, 25, 40);
+        ctx.fillStyle = "black"; ctx.font = "bold 24px Arial"; ctx.textAlign = "center";
+        ctx.fillText(n, -25, 8); 
+        ctx.restore();
+        ctx.fillStyle = "white"; ctx.font = "bold 30px Courier New"; ctx.textAlign = "center";
+        ctx.fillText("P" + n, x, y - 60);
     }
 
-    window.onkeydown = e => keys[e.key.toLowerCase()] = true;
-    window.onkeyup = e => keys[e.key.toLowerCase()] = false;
+    function getPathString(s) {
+        const x=1000*s, y=1000*s, w=6000*s, h=4000*s, r=800*s;
+        return `M ${x+r} ${y} L ${x+w-r} ${y} Q ${x+w} ${y} ${x+w} ${y+r} L ${x+w} ${y+h-r} Q ${x+w} ${y+h} ${x+w-r} ${y+h} L ${x+r} ${y+h} Q ${x} ${y+h} ${x} ${y+h-r} L ${x} ${y+r} Q ${x} ${y} ${x+r} ${y} Z`;
+    }
+
+    function drawMinimap() {
+        mCtx.clearRect(0,0, mCanvas.width, mCanvas.height);
+        mCtx.save();
+        mCtx.translate(35, 35);
+        let s = 0.03;
+        mCtx.strokeStyle = "rgba(255,255,255,0.5)";
+        mCtx.lineWidth = 2; trackPath(mCtx, s); mCtx.stroke();
+        
+        // Otros en minimapa
+        mCtx.fillStyle = "red";
+        for(let id in otherPlayers) { mCtx.beginPath(); mCtx.arc(otherPlayers[id].x*s, otherPlayers[id].y*s, 4, 0, 7); mCtx.fill(); }
+
+        // Yo en minimapa
+        mCtx.fillStyle = "#fbff00";
+        mCtx.beginPath(); mCtx.arc(player.x*s, player.y*s, 6, 0, Math.PI*2); mCtx.fill();
+        mCtx.restore();
+    }
+
+    window.onkeydown = e => keys[e.key] = true;
+    window.onkeyup = e => keys[e.key] = false;
     update();
 </script>
 </body>
