@@ -3,7 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server);
 
 app.use(express.static(__dirname));
 
@@ -12,58 +12,43 @@ let rooms = {};
 io.on('connection', (socket) => {
     socket.on('join-room', (roomId) => {
         socket.join(roomId);
-        if (!rooms[roomId]) rooms[roomId] = { players: {}, readyCount: 0, started: false };
+        if (!rooms[roomId]) rooms[roomId] = { players: {}, started: false };
         
-        rooms[roomId].players[socket.id] = { 
-            id: socket.id, 
-            num: Object.keys(rooms[roomId].players).length + 1,
-            laps: 0 
-        };
+        // Asignar número de dorsal basado en orden de llegada
+        const pNum = Object.keys(rooms[roomId].players).length + 1;
+        rooms[roomId].players[socket.id] = { id: socket.id, num: pNum, x: 1200, y: 1000, angle: 0, laps: 0 };
         
-        socket.emit('assign-number', rooms[roomId].players[socket.id].num);
-        io.to(roomId).emit('update-lobby', {
-            x: Object.keys(rooms[roomId].players).length,
-            y: rooms[roomId].readyCount
-        });
+        socket.emit('init-player', { num: pNum, room: roomId });
+        io.to(roomId).emit('update-table', Object.values(rooms[roomId].players));
     });
 
-    socket.on('player-ready', (roomId) => {
-        if (rooms[roomId]) {
-            rooms[roomId].readyCount++;
-            let total = Object.keys(rooms[roomId].players).length;
-            io.to(roomId).emit('update-lobby', { x: total, y: rooms[roomId].readyCount });
-            
-            if (rooms[roomId].readyCount >= total && total > 0) {
-                rooms[roomId].started = true;
-                io.to(roomId).emit('init-race');
-                [1,2,3,4,5].forEach(n => setTimeout(() => io.to(roomId).emit('light', n), n * 1000));
-                setTimeout(() => io.to(roomId).emit('start-go'), 6000);
-            }
+    socket.on('update-me', (data) => {
+        if (rooms[data.room] && rooms[data.room].players[socket.id]) {
+            Object.assign(rooms[data.room].players[socket.id], data);
+            socket.to(data.room).emit('player-moved', rooms[data.room].players[socket.id]);
         }
     });
 
-    socket.on('move', (data) => {
-        if (data.roomId) socket.to(data.roomId).emit('player-moved', data);
+    socket.on('sync-laps', (data) => {
+        if (rooms[data.room] && rooms[data.room].players[socket.id]) {
+            rooms[data.room].players[socket.id].laps = data.laps;
+            io.to(data.room).emit('update-table', Object.values(rooms[data.room].players));
+        }
     });
 
-    socket.on('lap-completed', (data) => {
-        if (rooms[data.roomId] && rooms[data.roomId].players[socket.id]) {
-            rooms[data.roomId].players[socket.id].laps++;
-            io.to(data.roomId).emit('update-leaderboard', Object.values(rooms[data.roomId].players));
-        }
+    socket.on('start-request', (roomId) => {
+        io.to(roomId).emit('begin-countdown');
     });
 
     socket.on('disconnect', () => {
-        for (let roomId in rooms) {
-            if (rooms[roomId].players[socket.id]) {
-                delete rooms[roomId].players[socket.id];
-                io.to(roomId).emit('update-lobby', {
-                    x: Object.keys(rooms[roomId].players).length,
-                    y: rooms[roomId].readyCount
-                });
+        for (let r in rooms) {
+            if (rooms[r].players[socket.id]) {
+                delete rooms[r].players[socket.id];
+                io.to(r).emit('update-table', Object.values(rooms[r].players));
             }
         }
     });
 });
 
-server.listen(process.env.PORT || 10000);
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
