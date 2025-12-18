@@ -232,7 +232,9 @@
         drawCar(player.x, player.y, player.angle, playerNumber, "#fbff00");
 
         ctx.restore();
-        player.onGrass = !ctx.isPointInStroke(new Path2D(getPathString(1)), player.x, player.y);
+        const trackArea = new Path2D(getPathString(1));
+        ctx.lineWidth = 560; 
+        player.onGrass = !ctx.isPointInStroke(trackArea, player.x, player.y);
         drawMinimap();
     }
 
@@ -278,3 +280,4 @@
 </script>
 </body>
 </html>
+
