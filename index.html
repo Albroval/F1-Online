@@ -67,7 +67,7 @@
             </div>
             <div class="car-card" onclick="selectCar('veloz', this)">
                 <h4>SONIC</h4>
-                <p>400km/h Manejo Total</p>
+                <p>400km/h Agarre Pro</p>
             </div>
         </div>
 
@@ -117,10 +117,10 @@
 
     // --- CONFIGURACIÓN DE CLASES ---
     const CAR_TYPES = {
-        balanceado: { top: 35, accel: 1.2, grassMax: 7.2, color: "#fbff00", turnSens: 0.15 },
-        acelerador: { top: 25, accel: 6.0, grassMax: 6.0, color: "#00ccff", turnSens: 0.15 },
-        offroad:    { top: 30, accel: 1.0, grassMax: 12.0, color: "#44ff44", turnSens: 0.15 },
-        veloz:      { top: 40, accel: 0.08, grassMax: 5.0, color: "#ff4444", turnSens: 1.0 } // Sonic: Giro Instantáneo
+        balanceado: { top: 35, accel: 1.2, grassMax: 7.2, color: "#fbff00", grip: 0.15 },
+        acelerador: { top: 25, accel: 6.0, grassMax: 6.0, color: "#00ccff", grip: 0.15 },
+        offroad:    { top: 30, accel: 1.0, grassMax: 12.0, color: "#44ff44", grip: 0.15 },
+        veloz:      { top: 40, accel: 0.18, grassMax: 5.0, color: "#ff4444", grip: 0.85 } // Sonic mejorado
     };
     let selectedCarType = "balanceado";
 
@@ -206,13 +206,12 @@
         player.x = 1200 + (playerNumber * 120); player.y = 1000; player.angle = 0;
         player.velX = 0; player.velY = 0; player.speed = 0;
         laps = 0; document.getElementById('lap-num').innerText = "0";
-        canMove = false; raceStarted = true;
+        canMove = true; raceStarted = true;
 
         setTimeout(() => { document.getElementById('light-r').classList.add('red'); }, 500);
         setTimeout(() => { document.getElementById('light-y').classList.add('yellow'); }, 1500);
         setTimeout(() => { 
             document.getElementById('light-g').classList.add('green');
-            canMove = true; 
         }, 2500);
         setTimeout(() => { document.getElementById('lights-container').style.display = 'none'; }, 5000);
     }
@@ -252,6 +251,13 @@
             let accel = player.onGrass ? 0.3 : stats.accel;
 
             if (inX !== 0 || inY !== 0) {
+                // AGARRE DINÁMICO: Cambia el vector de velocidad para que el coche "no se vaya"
+                if (selectedCarType === 'veloz') {
+                    // Sonic redirige su inercia hacia donde apuntas
+                    let currentSpeed = Math.sqrt(player.velX**2 + player.velY**2);
+                    player.velX = (player.velX * 0.5) + (inX * currentSpeed * 0.5);
+                    player.velY = (player.velY * 0.5) + (inY * currentSpeed * 0.5);
+                }
                 player.velX += inX * accel;
                 player.velY += inY * accel;
             } else {
@@ -297,7 +303,7 @@
                 let diff = targetA - player.angle;
                 while (diff < -Math.PI) diff += Math.PI * 2;
                 while (diff > Math.PI) diff -= Math.PI * 2;
-                player.angle += diff * stats.turnSens; 
+                player.angle += diff * stats.grip; 
             }
 
             socket.emit('update-me', { 
