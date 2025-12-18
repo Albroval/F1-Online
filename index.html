@@ -185,6 +185,12 @@
 
     function update() {
         if (raceStarted) {
+            // --- DETECCIÓN DE CÉSPED ---
+            // IMPORTANTE: Definimos el lineWidth antes de comprobar el stroke
+            ctx.lineWidth = 600; 
+            trackPath(ctx);
+            player.onGrass = !ctx.isPointInStroke(player.x, player.y);
+
             let inX = 0, inY = 0;
             if (canMove) {
                 if (keys['w'] || keys['W'] || keys['ArrowUp']) inY -= 1;
@@ -198,14 +204,15 @@
                 inX /= mag; inY /= mag;
             }
 
-            // --- CORRECCIÓN DE FÍSICAS Y CÉSPED ---
-            let targetMax = player.onGrass ? 22 : 35;
+            // --- FÍSICAS DE VELOCIDAD (Hasta 350 km/h) ---
+            let targetMax = player.onGrass ? 7.2 : 35; // 72 km/h vs 350 km/h
             let curS = player.speed * 10;
-            // Accel ajustada para llegar a 320-350 km/h en asfalto
-            let accel = player.onGrass ? 0.3 : (curS < 320 ? 1.5 : 0.12);
+            
+            // Aceleración progresiva
+            let accel = player.onGrass ? 0.2 : (curS < 300 ? 1.2 : 0.1);
 
             player.velX += inX * accel; player.velY += inY * accel;
-            player.velX *= 0.96; player.velY *= 0.96;
+            player.velX *= 0.97; player.velY *= 0.97; // Fricción natural
             player.speed = Math.sqrt(player.velX**2 + player.velY**2);
             
             if (player.speed > targetMax) {
@@ -216,6 +223,7 @@
 
             player.x += player.velX; player.y += player.velY;
 
+            // Checkpoints y lógica de carrera
             if (player.x > 6000 && player.y > 4000) {
                 if (!hasCheckpoint) {
                     hasCheckpoint = true;
@@ -235,6 +243,7 @@
                 }
             }
 
+            // Rotación suave del coche
             if (player.speed > 0.2) {
                 let targetA = Math.atan2(player.velY, player.velX);
                 let diff = targetA - player.angle;
@@ -245,6 +254,7 @@
 
             socket.emit('update-me', { room: currentRoom, x: player.x, y: player.y, angle: player.angle, num: playerNumber });
 
+            // Actualizar Dashboard
             let kmh = Math.round(player.speed * 10);
             document.getElementById('speed-num').innerText = kmh;
             document.getElementById('needle').style.transform = `rotate(${-90 + (kmh * 0.51)}deg)`;
@@ -263,25 +273,21 @@
         ctx.scale(zoom, zoom);
         ctx.translate(-player.x, -player.y);
 
-        // Pista Visual
+        // Dibujo visual de la pista
         ctx.strokeStyle = "#7a7a7a"; ctx.lineWidth = 850; trackPath(ctx); ctx.stroke();
         ctx.setLineDash([60, 60]); ctx.lineWidth = 625; ctx.strokeStyle = "white"; trackPath(ctx); ctx.stroke();
         ctx.strokeStyle = "#e00000"; ctx.lineDashOffset = 60; trackPath(ctx); ctx.stroke();
         ctx.setLineDash([]); ctx.strokeStyle = "#111111"; ctx.lineWidth = 560; trackPath(ctx); ctx.stroke();
         
         ctx.fillStyle = "white"; 
-        ctx.fillRect(1400, 720, 100, 560);
+        ctx.fillRect(1400, 720, 100, 560); // Meta
 
-        // --- DETECCIÓN DE CÉSPED MEJORADA ---
-        // Usamos 600 para que cubra todo el asfalto gris y un poco de los bordes (pianos)
-        ctx.lineWidth = 600;
-        trackPath(ctx); 
-        player.onGrass = !ctx.isPointInStroke(player.x, player.y);
-
+        // Otros jugadores
         for(let id in otherPlayers){
             let p = otherPlayers[id];
             drawCar(p.x, p.y, p.angle, p.num, "red");
         }
+        // Jugador local
         drawCar(player.x, player.y, player.angle, playerNumber, "#fbff00");
 
         ctx.restore();
