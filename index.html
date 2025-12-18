@@ -67,7 +67,7 @@
             </div>
             <div class="car-card" onclick="selectCar('veloz', this)">
                 <h4>SONIC</h4>
-                <p>400km/h con Boost</p>
+                <p>400km/h con Freno Giro</p>
             </div>
         </div>
 
@@ -90,7 +90,6 @@
             <div style="font-size: 14px; color: #aaa; margin-bottom: 5px;">TU DORSAL: #<span id="player-id">?</span></div>
             VUELTA: <span id="lap-num">0</span>
             <div style="font-size: 12px; color: white; margin-top: 5px;">CHECKPOINT: <span id="chk-val" style="color:red">PENDIENTE</span></div>
-            <div id="sonic-boost-ui" style="font-size: 12px; color: #fbff00; margin-top: 5px; display:none;">BOOST: <span id="boost-timer">3.0</span>s</div>
         </div>
 
         <div id="leaderboard">
@@ -116,16 +115,12 @@
     let playerNumber = "?";
     let isReady = false;
 
-    // --- VARIABLES DE ESTADO SONIC ---
-    let sonicCleanTime = 0;
-    let isSuperSonic = false;
-
-    // --- CONFIGURACIÓN DE CLASES ACTUALIZADA ---
+    // --- CONFIGURACIÓN DE CLASES ---
     const CAR_TYPES = {
         balanceado: { top: 35, accel: 1.2, grassMax: 7.2, color: "#fbff00", grip: 0.15 },
-        acelerador: { top: 20, accel: 6.0, grassMax: 6.0, color: "#00ccff", grip: 0.15 }, // Sprinter a 200
-        offroad:    { top: 30, accel: 1.0, grassMax: 20.0, color: "#44ff44", grip: 0.15 }, // Rally a 200 en césped
-        veloz:      { top: 30, accel: 0.18, grassMax: 2.0, color: "#ff4444", grip: 0.85 } // Sonic base 300 / Césped 20
+        acelerador: { top: 20, accel: 6.0, grassMax: 6.0, color: "#00ccff", grip: 0.15 },
+        offroad:    { top: 30, accel: 1.0, grassMax: 20.0, color: "#44ff44", grip: 0.15 },
+        veloz:      { top: 40, accel: 0.18, grassMax: 2.0, color: "#ff4444", grip: 0.85 } 
     };
     let selectedCarType = "balanceado";
 
@@ -134,8 +129,6 @@
         document.querySelectorAll('.car-card').forEach(c => c.classList.remove('selected'));
         element.classList.add('selected');
         player.color = CAR_TYPES[type].color;
-        // Mostrar/Ocultar UI de boost
-        document.getElementById('sonic-boost-ui').style.display = (type === 'veloz') ? 'block' : 'none';
     }
 
     function joinLobby() {
@@ -251,31 +244,15 @@
                 inX /= mag; inY /= mag;
             }
 
-            let stats = Object.assign({}, CAR_TYPES[selectedCarType]);
-
-            // --- LÓGICA DE ACTUALIZACIÓN SONIC ---
-            if (selectedCarType === 'veloz') {
-                if (player.onGrass) {
-                    sonicCleanTime = 0;
-                    isSuperSonic = false;
-                    player.color = "#ff4444";
-                    document.getElementById('boost-timer').innerText = "PERDIDO";
-                } else {
-                    if (!isSuperSonic) {
-                        sonicCleanTime += 1/60;
-                        let rem = Math.max(0, 3 - sonicCleanTime);
-                        document.getElementById('boost-timer').innerText = rem.toFixed(1);
-                        if (sonicCleanTime >= 3) {
-                            isSuperSonic = true;
-                            player.color = "#fbff00"; // Se vuelve dorado en modo Super
-                        }
-                    } else {
-                        document.getElementById('boost-timer').innerText = "MAX";
-                        stats.top = 40; // Desbloquea los 400km/h
-                    }
-                }
-            }
+            let stats = CAR_TYPES[selectedCarType];
             
+            // --- NERF SONIC: LIMITAR A 200 AL GIRAR ---
+            if (selectedCarType === 'veloz' && inX !== 0 && player.speed > 20) {
+                player.speed = 20;
+                player.velX = Math.cos(player.angle) * player.speed;
+                player.velY = Math.sin(player.angle) * player.speed;
+            }
+
             let targetMax = player.onGrass ? stats.grassMax : stats.top; 
             let frictionBase = (selectedCarType === 'veloz') ? 0.9995 : 0.992;
             let accel = player.onGrass ? 0.3 : stats.accel;
