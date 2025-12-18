@@ -2,13 +2,25 @@
 <html>
 <head>
     <title>F1 Nebula - Competitive Leaderboard</title>
-    <script src="/socket.io/socket.io.js"></script> <style>
-        /* Mismo CSS que el tuyo, solo añadimos el input de sala */
+    <script src="/socket.io/socket.io.js"></script> 
+    <style>
         body { margin: 0; overflow: hidden; background: #1a5e1a; font-family: 'Arial Black', sans-serif; }
         canvas { display: block; }
         #overlay { position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; }
         button { padding: 20px 40px; font-size: 30px; background: #fbff00; border: none; cursor: pointer; font-family: 'Arial Black'; border-radius: 10px; transition: 0.2s; margin: 10px; }
         button:hover { background: #fffb00; transform: scale(1.05); }
+        
+        /* Estilos del Selector de Coche */
+        .car-selector { display: flex; gap: 10px; margin: 20px 0; }
+        .car-card { 
+            background: rgba(255,255,255,0.1); border: 2px solid #555; 
+            padding: 10px; border-radius: 8px; cursor: pointer; color: white;
+            font-size: 12px; width: 110px; text-align: center; transition: 0.3s;
+        }
+        .car-card:hover { background: rgba(252, 255, 0, 0.2); }
+        .car-card.selected { border-color: #fbff00; background: rgba(252, 255, 0, 0.3); transform: scale(1.05); }
+        .car-card h4 { margin: 5px 0; color: #fbff00; font-size: 14px; }
+
         #lights-container { position: absolute; top: 10%; left: 50%; transform: translateX(-50%); display: none; flex-direction: row; background: #222; padding: 10px; border-radius: 10px; z-index: 150; border: 2px solid #444; }
         .light { width: 60px; height: 60px; border-radius: 50%; margin: 5px; background: #111; }
         .red { background: #ff0000; box-shadow: 0 0 30px #ff0000; }
@@ -23,7 +35,7 @@
         .silver { color: #c0c0c0; }
         .bronze { color: #cd7f32; }
         #dashboard { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 240px; height: 140px; background: rgba(0,0,0,0.9); border-radius: 120px 120px 15px 15px; border: 4px solid #fbff00; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 15px; z-index: 100; }
-        #needle { position: absolute; bottom: 50px; width: 4px; height: 90px; background: #ff0000; transform-origin: bottom center; }
+        #needle { position: absolute; bottom: 50px; width: 4px; height: 90px; background: #ff0000; transform-origin: bottom center; transition: transform 0.1s; }
         #speed-num { color: #fbff00; font-size: 42px; font-weight: bold; font-family: 'Courier New'; }
         #minimap-container { position: absolute; bottom: 25px; left: 25px; width: 280px; height: 200px; background: rgba(0,0,0,0.8); border: 2px solid #fbff00; border-radius: 15px; z-index: 100; }
     </style>
@@ -33,15 +45,33 @@
     <div id="menu-login" style="display: flex; flex-direction: column; align-items: center;">
         <h1 style="color: white; margin-bottom: 5px;">F1 NEBULA</h1>
         <p style="color: #fbff00; margin-bottom: 25px;">MULTIJUGADOR ONLINE</p>
-        
         <input type="text" id="room-input" placeholder="CÓDIGO (4 cifras)" maxlength="4" 
                style="padding: 15px; font-size: 24px; text-align: center; border-radius: 10px; border: 2px solid #fbff00; background: #000; color: white; margin-bottom: 20px; width: 250px; font-family: 'Courier New';">
-        
         <button onclick="joinLobby()">CONECTAR</button>
     </div>
 
     <div id="menu-lobby" style="display: none; flex-direction: column; align-items: center;">
         <h2 id="display-room-name" style="color: #fbff00; font-size: 30px;">SALA: ----</h2>
+        
+        <div class="car-selector">
+            <div class="car-card selected" onclick="selectCar('balanceado', this)">
+                <h4>NEBULA V1</h4>
+                <p>Equilibrado</p>
+            </div>
+            <div class="car-card" onclick="selectCar('acelerador', this)">
+                <h4>SPRINTER</h4>
+                <p>++Acel / -Top</p>
+            </div>
+            <div class="car-card" onclick="selectCar('offroad', this)">
+                <h4>RALLY</h4>
+                <p>Veloz en Césped</p>
+            </div>
+            <div class="car-card" onclick="selectCar('veloz', this)">
+                <h4>SONIC</h4>
+                <p>--Acel / ++Top</p>
+            </div>
+        </div>
+
         <div style="background: rgba(0,0,0,0.6); padding: 25px; border: 2px solid #fbff00; border-radius: 15px; margin: 20px 0; text-align: center; color: white; min-width: 250px;">
             <p style="font-size: 20px; margin: 10px 0;">Jugadores: <span id="player-count" style="color: #fbff00;">0/10</span></p>
             <p style="font-size: 24px; font-weight: bold; margin: 10px 0;">Listos: <span id="ready-count">0</span> / <span id="total-count">0</span></p>
@@ -86,6 +116,22 @@
     let otherPlayers = {};
     let playerNumber = "?";
     let isReady = false;
+
+    // --- CONFIGURACIÓN DE CLASES ---
+    const CAR_TYPES = {
+        balanceado: { top: 35, accel: 1.2, grassMax: 7.2, color: "#fbff00" },
+        acelerador: { top: 28, accel: 2.2, grassMax: 6.0, color: "#00ccff" },
+        offroad:    { top: 30, accel: 1.0, grassMax: 22.0, color: "#44ff44" },
+        veloz:      { top: 45, accel: 0.6, grassMax: 5.0, color: "#ff4444" }
+    };
+    let selectedCarType = "balanceado";
+
+    function selectCar(type, element) {
+        selectedCarType = type;
+        document.querySelectorAll('.car-card').forEach(c => c.classList.remove('selected'));
+        element.classList.add('selected');
+        player.color = CAR_TYPES[type].color;
+    }
 
     function joinLobby() {
         const input = document.getElementById('room-input');
@@ -146,7 +192,7 @@
     const mCtx = mCanvas.getContext('2d');
 
     let laps = 0, hasCheckpoint = false, raceStarted = false, canMove = false;
-    let player = { x: 1200, y: 1000, angle: 0, velX: 0, velY: 0, speed: 0, onGrass: false };
+    let player = { x: 1200, y: 1000, angle: 0, velX: 0, velY: 0, speed: 0, onGrass: false, color: "#fbff00" };
     const keys = {};
 
     function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
@@ -186,7 +232,6 @@
     function update() {
         if (raceStarted) {
             // --- DETECCIÓN DE CÉSPED ---
-            // IMPORTANTE: Definimos el lineWidth antes de comprobar el stroke
             ctx.lineWidth = 600; 
             trackPath(ctx);
             player.onGrass = !ctx.isPointInStroke(player.x, player.y);
@@ -204,15 +249,16 @@
                 inX /= mag; inY /= mag;
             }
 
-            // --- FÍSICAS DE VELOCIDAD (Hasta 350 km/h) ---
-            let targetMax = player.onGrass ? 7.2 : 35; // 72 km/h vs 350 km/h
+            // --- FÍSICAS BASADAS EN CLASE ---
+            let stats = CAR_TYPES[selectedCarType];
+            let targetMax = player.onGrass ? stats.grassMax : stats.top; 
             let curS = player.speed * 10;
             
-            // Aceleración progresiva
-            let accel = player.onGrass ? 0.2 : (curS < 300 ? 1.2 : 0.1);
+            // Aceleración dinámica
+            let accel = player.onGrass ? 0.2 : (curS < (stats.top * 8) ? stats.accel : 0.1);
 
             player.velX += inX * accel; player.velY += inY * accel;
-            player.velX *= 0.97; player.velY *= 0.97; // Fricción natural
+            player.velX *= 0.97; player.velY *= 0.97; 
             player.speed = Math.sqrt(player.velX**2 + player.velY**2);
             
             if (player.speed > targetMax) {
@@ -223,7 +269,7 @@
 
             player.x += player.velX; player.y += player.velY;
 
-            // Checkpoints y lógica de carrera
+            // Lógica de checkpoints
             if (player.x > 6000 && player.y > 4000) {
                 if (!hasCheckpoint) {
                     hasCheckpoint = true;
@@ -243,7 +289,7 @@
                 }
             }
 
-            // Rotación suave del coche
+            // Rotación suave
             if (player.speed > 0.2) {
                 let targetA = Math.atan2(player.velY, player.velX);
                 let diff = targetA - player.angle;
@@ -252,12 +298,19 @@
                 player.angle += diff * 0.15;
             }
 
-            socket.emit('update-me', { room: currentRoom, x: player.x, y: player.y, angle: player.angle, num: playerNumber });
+            socket.emit('update-me', { 
+                room: currentRoom, 
+                x: player.x, 
+                y: player.y, 
+                angle: player.angle, 
+                num: playerNumber,
+                color: player.color 
+            });
 
-            // Actualizar Dashboard
+            // Dashboard
             let kmh = Math.round(player.speed * 10);
             document.getElementById('speed-num').innerText = kmh;
-            document.getElementById('needle').style.transform = `rotate(${-90 + (kmh * 0.51)}deg)`;
+            document.getElementById('needle').style.transform = `rotate(${-90 + (kmh * 0.4)}deg)`;
 
             draw(); 
         }
@@ -273,22 +326,21 @@
         ctx.scale(zoom, zoom);
         ctx.translate(-player.x, -player.y);
 
-        // Dibujo visual de la pista
         ctx.strokeStyle = "#7a7a7a"; ctx.lineWidth = 850; trackPath(ctx); ctx.stroke();
         ctx.setLineDash([60, 60]); ctx.lineWidth = 625; ctx.strokeStyle = "white"; trackPath(ctx); ctx.stroke();
         ctx.strokeStyle = "#e00000"; ctx.lineDashOffset = 60; trackPath(ctx); ctx.stroke();
         ctx.setLineDash([]); ctx.strokeStyle = "#111111"; ctx.lineWidth = 560; trackPath(ctx); ctx.stroke();
         
         ctx.fillStyle = "white"; 
-        ctx.fillRect(1400, 720, 100, 560); // Meta
+        ctx.fillRect(1400, 720, 100, 560); 
 
-        // Otros jugadores
+        // Otros jugadores sincronizados
         for(let id in otherPlayers){
             let p = otherPlayers[id];
-            drawCar(p.x, p.y, p.angle, p.num, "red");
+            drawCar(p.x, p.y, p.angle, p.num, p.color || "red");
         }
-        // Jugador local
-        drawCar(player.x, player.y, player.angle, playerNumber, "#fbff00");
+        // Local
+        drawCar(player.x, player.y, player.angle, playerNumber, player.color);
 
         ctx.restore();
         drawMinimap();
@@ -316,12 +368,12 @@
         mCtx.strokeStyle = "rgba(255,255,255,0.3)";
         mCtx.lineWidth = 15; trackPath(mCtx, s); mCtx.stroke();
         
-        mCtx.fillStyle = "red";
         for(let id in otherPlayers) { 
+            mCtx.fillStyle = otherPlayers[id].color || "red";
             mCtx.beginPath(); mCtx.arc(otherPlayers[id].x*s, otherPlayers[id].y*s, 4, 0, Math.PI*2); mCtx.fill(); 
         }
 
-        mCtx.fillStyle = "#fbff00";
+        mCtx.fillStyle = player.color;
         mCtx.beginPath(); mCtx.arc(player.x*s, player.y*s, 6, 0, Math.PI*2); mCtx.fill();
         mCtx.restore();
     }
