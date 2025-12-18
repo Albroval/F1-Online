@@ -120,7 +120,7 @@
         balanceado: { top: 35, accel: 1.2, grassMax: 7.2, color: "#fbff00" },
         acelerador: { top: 25, accel: 6.0, grassMax: 6.0, color: "#00ccff" },
         offroad:    { top: 30, accel: 1.0, grassMax: 12.0, color: "#44ff44" },
-        veloz:      { top: 40, accel: 0.18, grassMax: 5.0, color: "#ff4444" }
+        veloz:      { top: 40, accel: 0.9, grassMax: 5.0, color: "#ff4444" } // Aumentada para vencer fricción
     };
     let selectedCarType = "balanceado";
 
@@ -248,12 +248,26 @@
             let stats = CAR_TYPES[selectedCarType];
             let targetMax = player.onGrass ? stats.grassMax : stats.top; 
             
-            let accel = player.onGrass ? 0.2 : stats.accel;
+            // FÍSICA CORREGIDA: Empuje constante para vencer la fricción
+            let friction = 0.98;
+            let accel = player.onGrass ? 0.3 : stats.accel;
 
-            player.velX += inX * accel; player.velY += inY * accel;
-            player.velX *= 0.98; player.velY *= 0.98; 
+            if (inX !== 0 || inY !== 0) {
+                player.velX += inX * accel;
+                player.velY += inY * accel;
+            } else {
+                // Frenado natural cuando no se pulsa nada
+                player.velX *= friction;
+                player.velY *= friction;
+            }
+
+            // Aplicamos fricción de aire constante
+            player.velX *= 0.992;
+            player.velY *= 0.992;
+            
             player.speed = Math.sqrt(player.velX**2 + player.velY**2);
             
+            // Limite de velocidad estricto
             if (player.speed > targetMax) {
                 player.velX *= (targetMax / player.speed);
                 player.velY *= (targetMax / player.speed);
@@ -271,7 +285,7 @@
             }
 
             if (player.x > 1400 && player.x < 1500 && player.y < 1500) {
-                if (hasCheckpoint && player.velX > 0) {
+                if (hasCheckpoint && (player.velX > 0 || player.velY < 0)) {
                     laps++;
                     document.getElementById('lap-num').innerText = laps;
                     hasCheckpoint = false;
@@ -306,7 +320,7 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
-        let zoom = raceStarted ? (0.65 - (player.speed / 280)) : 0.35;
+        let zoom = raceStarted ? (0.65 - (player.speed / 350)) : 0.35;
         ctx.translate(canvas.width/2, canvas.height/2);
         ctx.scale(zoom, zoom);
         ctx.translate(-player.x, -player.y);
