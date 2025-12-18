@@ -67,7 +67,7 @@
             </div>
             <div class="car-card" onclick="selectCar('veloz', this)">
                 <h4>SONIC</h4>
-                <p>Top 400 / Acel --</p>
+                <p>400km/h Aero++</p>
             </div>
         </div>
 
@@ -120,7 +120,7 @@
         balanceado: { top: 35, accel: 1.2, grassMax: 7.2, color: "#fbff00" },
         acelerador: { top: 25, accel: 6.0, grassMax: 6.0, color: "#00ccff" },
         offroad:    { top: 30, accel: 1.0, grassMax: 12.0, color: "#44ff44" },
-        veloz:      { top: 40, accel: 0.9, grassMax: 5.0, color: "#ff4444" } // Aumentada para vencer fricción
+        veloz:      { top: 40, accel: 0.35, grassMax: 5.0, color: "#ff4444" } // Sonic
     };
     let selectedCarType = "balanceado";
 
@@ -248,26 +248,25 @@
             let stats = CAR_TYPES[selectedCarType];
             let targetMax = player.onGrass ? stats.grassMax : stats.top; 
             
-            // FÍSICA CORREGIDA: Empuje constante para vencer la fricción
-            let friction = 0.98;
+            // --- LÓGICA DE RESISTENCIA ESPECIAL PARA SONIC ---
+            let frictionBase = (selectedCarType === 'veloz') ? 0.999 : 0.992;
             let accel = player.onGrass ? 0.3 : stats.accel;
 
             if (inX !== 0 || inY !== 0) {
                 player.velX += inX * accel;
                 player.velY += inY * accel;
             } else {
-                // Frenado natural cuando no se pulsa nada
-                player.velX *= friction;
-                player.velY *= friction;
+                // Frenado por motor (soltar teclas)
+                player.velX *= 0.98;
+                player.velY *= 0.98;
             }
 
-            // Aplicamos fricción de aire constante
-            player.velX *= 0.992;
-            player.velY *= 0.992;
+            // Resistencia aerodinámica (Sonic casi no tiene)
+            player.velX *= frictionBase;
+            player.velY *= frictionBase;
             
             player.speed = Math.sqrt(player.velX**2 + player.velY**2);
             
-            // Limite de velocidad estricto
             if (player.speed > targetMax) {
                 player.velX *= (targetMax / player.speed);
                 player.velY *= (targetMax / player.speed);
