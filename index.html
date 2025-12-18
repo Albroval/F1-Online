@@ -33,6 +33,11 @@
         .gold { color: #ffd700; font-weight: bold; }
         .silver { color: #c0c0c0; }
         .bronze { color: #cd7f32; }
+        
+        /* BARRA DE NITRO */
+        #nitro-container { position: absolute; bottom: 170px; left: 50%; transform: translateX(-50%); width: 200px; height: 15px; background: #333; border: 2px solid #fbff00; border-radius: 10px; display: none; overflow: hidden; }
+        #nitro-bar { width: 100%; height: 100%; background: #00ccff; transition: width 0.1s; }
+
         #dashboard { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 240px; height: 140px; background: rgba(0,0,0,0.9); border-radius: 120px 120px 15px 15px; border: 4px solid #fbff00; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 15px; z-index: 100; }
         #needle { position: absolute; bottom: 50px; width: 4px; height: 90px; background: #ff0000; transform-origin: bottom center; transition: transform 0.1s; }
         #speed-num { color: #fbff00; font-size: 42px; font-weight: bold; font-family: 'Courier New'; }
@@ -44,18 +49,16 @@
     <div id="menu-login" style="display: flex; flex-direction: column; align-items: center;">
         <h1 style="color: white; margin-bottom: 5px;">F1 NEBULA</h1>
         <p style="color: #fbff00; margin-bottom: 25px;">MULTIJUGADOR ONLINE</p>
-        <input type="text" id="room-input" placeholder="CÓDIGO (4 cifras)" maxlength="4" 
-               style="padding: 15px; font-size: 24px; text-align: center; border-radius: 10px; border: 2px solid #fbff00; background: #000; color: white; margin-bottom: 20px; width: 250px; font-family: 'Courier New';">
+        <input type="text" id="room-input" placeholder="CÓDIGO (4 cifras)" maxlength="4" style="padding: 15px; font-size: 24px; text-align: center; border-radius: 10px; border: 2px solid #fbff00; background: #000; color: white; margin-bottom: 20px; width: 250px; font-family: 'Courier New';">
         <button onclick="joinLobby()">CONECTAR</button>
     </div>
-
     <div id="menu-lobby" style="display: none; flex-direction: column; align-items: center;">
         <h2 id="display-room-name" style="color: #fbff00; font-size: 30px;">SALA: ----</h2>
         <div class="car-selector">
             <div class="car-card selected" onclick="selectCar('balanceado', this)"><h4>NEBULA V1</h4><p>Equilibrado</p></div>
             <div class="car-card" onclick="selectCar('acelerador', this)"><h4>SPRINTER</h4><p>Top 200 / Acel ++</p></div>
             <div class="car-card" onclick="selectCar('offroad', this)"><h4>RALLY</h4><p>Top 200 Césped</p></div>
-            <div class="car-card" onclick="selectCar('veloz', this)"><h4>SONIC</h4><p>400km/h con Inercia</p></div>
+            <div class="car-card" onclick="selectCar('veloz', this)"><h4>SONIC</h4><p>320km/h + NITRO [Espacio]</p></div>
         </div>
         <div style="background: rgba(0,0,0,0.6); padding: 25px; border: 2px solid #fbff00; border-radius: 15px; margin: 20px 0; text-align: center; color: white; min-width: 250px;">
             <p style="font-size: 20px; margin: 10px 0;">Jugadores: <span id="player-count" style="color: #fbff00;">0/10</span></p>
@@ -80,6 +83,7 @@
     </div>
 </div>
 
+<div id="nitro-container"><div id="nitro-bar"></div></div>
 <div id="minimap-container"><canvas id="minimapCanvas" width="280" height="200"></canvas></div>
 <div id="dashboard">
     <div id="needle"></div>
@@ -91,13 +95,18 @@
 <script>
     const socket = io();
     let currentRoom = "", otherPlayers = {}, playerNumber = "?", isReady = false;
-    let sonicRecovering = 0; // Variable indispensable para el nerf de Sonic
+
+    // --- LÓGICA NITRO SONIC ---
+    let sonicNitroTime = 0;       // Tiempo restante de nitro activo
+    let sonicCooldown = 0;        // Tiempo restante para poder volver a usarlo
+    const NITRO_DURATION = 4;     // 4 segundos
+    const NITRO_COOLDOWN = 12;    // 12 segundos de recarga
 
     const CAR_TYPES = {
         balanceado: { top: 35, accel: 1.2, grassMax: 7.2, color: "#fbff00", grip: 0.15 },
         acelerador: { top: 20, accel: 6.0, grassMax: 6.0, color: "#00ccff", grip: 0.15 },
         offroad:    { top: 30, accel: 1.0, grassMax: 20.0, color: "#44ff44", grip: 0.15 },
-        veloz:      { top: 40, accel: 0.18, grassMax: 2.0, color: "#ff4444", grip: 0.85 }
+        veloz:      { top: 32, accel: 0.20, grassMax: 2.0, color: "#ff4444", grip: 0.85 } // Base 320km/h
     };
     let selectedCarType = "balanceado";
 
@@ -106,6 +115,7 @@
         document.querySelectorAll('.car-card').forEach(c => c.classList.remove('selected'));
         element.classList.add('selected');
         player.color = CAR_TYPES[type].color;
+        document.getElementById('nitro-container').style.display = (type === 'veloz') ? 'block' : 'none';
     }
 
     function joinLobby() {
@@ -180,23 +190,37 @@
                 if (keys['s'] || keys['S'] || keys['ArrowDown']) inY += 1;
                 if (keys['a'] || keys['A'] || keys['ArrowLeft']) inX -= 1;
                 if (keys['d'] || keys['D'] || keys['ArrowRight']) inX += 1;
+                
+                // Activar Nitro (Espacio)
+                if (keys[' '] && selectedCarType === 'veloz' && sonicCooldown <= 0 && player.speed > 20) {
+                    sonicNitroTime = NITRO_DURATION;
+                    sonicCooldown = NITRO_COOLDOWN;
+                }
             }
             if (inX !== 0 || inY !== 0) { let mag = Math.sqrt(inX*inX + inY*inY); inX /= mag; inY /= mag; }
 
-            let stats = CAR_TYPES[selectedCarType];
+            let stats = Object.assign({}, CAR_TYPES[selectedCarType]);
+            let currentGrip = stats.grip;
 
-            // --- LÓGICA DE FRENADO Y RECUPERACIÓN SONIC ---
+            // --- LÓGICA SONIC: NITRO Y NERF DE GIRO ---
             if (selectedCarType === 'veloz') {
-                if (sonicRecovering > 0) sonicRecovering -= 1/60;
-                if (inX !== 0 && player.speed > 20) {
-                    player.speed = 20;
-                    sonicRecovering = 0.5; // Bloquea aceleración 0.5s
+                if (sonicNitroTime > 0) {
+                    sonicNitroTime -= 1/60;
+                    stats.top = 40; // 400km/h
+                    stats.accel *= 2.5; // Acelerar rápido al usar nitro
+                    currentGrip *= 0.5; // Nerf 50% giro durante nitro
+                } else if (sonicCooldown > 0) {
+                    sonicCooldown -= 1/60;
                 }
+                // Actualizar barra visual
+                let progress = (sonicCooldown <= 0) ? 100 : ((NITRO_COOLDOWN - sonicCooldown) / NITRO_COOLDOWN) * 100;
+                document.getElementById('nitro-bar').style.width = progress + "%";
+                document.getElementById('nitro-bar').style.background = (sonicCooldown <= 0) ? "#00ff00" : (sonicNitroTime > 0 ? "#ffaa00" : "#00ccff");
             }
 
             let targetMax = player.onGrass ? stats.grassMax : stats.top; 
             let frictionBase = (selectedCarType === 'veloz') ? 0.9995 : 0.992;
-            let accel = (selectedCarType === 'veloz' && sonicRecovering > 0) ? 0 : (player.onGrass ? 0.3 : stats.accel);
+            let accel = player.onGrass ? 0.3 : stats.accel;
 
             if (inX !== 0 || inY !== 0) {
                 if (selectedCarType === 'veloz') {
@@ -230,7 +254,7 @@
                 let diff = targetA - player.angle;
                 while (diff < -Math.PI) diff += Math.PI * 2;
                 while (diff > Math.PI) diff -= Math.PI * 2;
-                player.angle += diff * stats.grip; 
+                player.angle += diff * currentGrip; 
             }
 
             socket.emit('update-me', { room: currentRoom, x: player.x, y: player.y, angle: player.angle, num: playerNumber, color: player.color });
