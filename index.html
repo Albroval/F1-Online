@@ -71,9 +71,13 @@
     let otherPlayers = {};
     let playerNumber = "?";
 
-    function connectAndStart() {
-        socket.emit('join-room', "SALA_1"); // Podrías cambiarlo por un prompt de sala
-        socket.emit('start-request', "SALA_1");
+function connectAndStart() {
+        const roomInput = prompt("CÓDIGO DE SALA:", "SALA1");
+        if (roomInput) {
+            currentRoom = roomInput.toUpperCase();
+            socket.emit('join-room', currentRoom);
+            socket.emit('start-request', currentRoom);
+        }
     }
 
     socket.on('init-player', (data) => {
@@ -280,4 +284,5 @@
 </script>
 </body>
 </html>
+
 
