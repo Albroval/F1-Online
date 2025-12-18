@@ -60,15 +60,15 @@
             </div>
             <div class="car-card" onclick="selectCar('acelerador', this)">
                 <h4>SPRINTER</h4>
-                <p>++Acel / -Top</p>
+                <p>Top Acel (250)</p>
             </div>
             <div class="car-card" onclick="selectCar('offroad', this)">
                 <h4>RALLY</h4>
-                <p>Veloz en Césped</p>
+                <p>120 km/h Césped</p>
             </div>
             <div class="car-card" onclick="selectCar('veloz', this)">
                 <h4>SONIC</h4>
-                <p>--Acel / ++Top</p>
+                <p>Top Speed (400)</p>
             </div>
         </div>
 
@@ -117,12 +117,12 @@
     let playerNumber = "?";
     let isReady = false;
 
-    // --- CONFIGURACIÓN DE CLASES ---
+    // --- CONFIGURACIÓN DE CLASES ACTUALIZADA ---
     const CAR_TYPES = {
         balanceado: { top: 35, accel: 1.2, grassMax: 7.2, color: "#fbff00" },
-        acelerador: { top: 28, accel: 2.2, grassMax: 6.0, color: "#00ccff" },
-        offroad:    { top: 30, accel: 1.0, grassMax: 22.0, color: "#44ff44" },
-        veloz:      { top: 45, accel: 0.6, grassMax: 5.0, color: "#ff4444" }
+        acelerador: { top: 25, accel: 5.0, grassMax: 6.0, color: "#00ccff" }, // 250 km/h, acelera instant
+        offroad:    { top: 30, accel: 1.0, grassMax: 12.0, color: "#44ff44" }, // 120 km/h en césped
+        veloz:      { top: 40, accel: 0.3, grassMax: 5.0, color: "#ff4444" }   // 400 km/h, acelera lento
     };
     let selectedCarType = "balanceado";
 
@@ -231,7 +231,6 @@
 
     function update() {
         if (raceStarted) {
-            // --- DETECCIÓN DE CÉSPED ---
             ctx.lineWidth = 600; 
             trackPath(ctx);
             player.onGrass = !ctx.isPointInStroke(player.x, player.y);
@@ -254,8 +253,8 @@
             let targetMax = player.onGrass ? stats.grassMax : stats.top; 
             let curS = player.speed * 10;
             
-            // Aceleración dinámica
-            let accel = player.onGrass ? 0.2 : (curS < (stats.top * 8) ? stats.accel : 0.1);
+            // Aceleración dinámica ajustada para las nuevas stats
+            let accel = player.onGrass ? 0.2 : (curS < (stats.top * 9) ? stats.accel : 0.1);
 
             player.velX += inX * accel; player.velY += inY * accel;
             player.velX *= 0.97; player.velY *= 0.97; 
@@ -269,7 +268,6 @@
 
             player.x += player.velX; player.y += player.velY;
 
-            // Checkpoints y lógica de carrera
             if (player.x > 6000 && player.y > 4000) {
                 if (!hasCheckpoint) {
                     hasCheckpoint = true;
@@ -289,7 +287,6 @@
                 }
             }
 
-            // Rotación suave del coche
             if (player.speed > 0.2) {
                 let targetA = Math.atan2(player.velY, player.velX);
                 let diff = targetA - player.angle;
@@ -307,7 +304,6 @@
                 color: player.color 
             });
 
-            // Actualizar Dashboard
             let kmh = Math.round(player.speed * 10);
             document.getElementById('speed-num').innerText = kmh;
             document.getElementById('needle').style.transform = `rotate(${-90 + (kmh * 0.4)}deg)`;
@@ -326,21 +322,18 @@
         ctx.scale(zoom, zoom);
         ctx.translate(-player.x, -player.y);
 
-        // Dibujo visual de la pista
         ctx.strokeStyle = "#7a7a7a"; ctx.lineWidth = 850; trackPath(ctx); ctx.stroke();
         ctx.setLineDash([60, 60]); ctx.lineWidth = 625; ctx.strokeStyle = "white"; trackPath(ctx); ctx.stroke();
         ctx.strokeStyle = "#e00000"; ctx.lineDashOffset = 60; trackPath(ctx); ctx.stroke();
         ctx.setLineDash([]); ctx.strokeStyle = "#111111"; ctx.lineWidth = 560; trackPath(ctx); ctx.stroke();
         
         ctx.fillStyle = "white"; 
-        ctx.fillRect(1400, 720, 100, 560); // Meta
+        ctx.fillRect(1400, 720, 100, 560); 
 
-        // Otros jugadores sincronizados
         for(let id in otherPlayers){
             let p = otherPlayers[id];
             drawCar(p.x, p.y, p.angle, p.num, p.color || "red");
         }
-        // Jugador local
         drawCar(player.x, player.y, player.angle, playerNumber, player.color);
 
         ctx.restore();
