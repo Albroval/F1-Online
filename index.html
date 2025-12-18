@@ -80,67 +80,57 @@
     <canvas id="gameCanvas"></canvas>
 
 <script>
-    // --- LÓGICA ONLINE ---
-const socket = io();
+// --- LÓGICA ONLINE ---
+    const socket = io();
     let currentRoom = "";
     let otherPlayers = {};
     let playerNumber = "?";
     let isReady = false;
 
-    // 1. Al dar click en CONECTAR (Menú 1)
     function joinLobby() {
-        const code = document.getElementById('room-input').value;
+        const input = document.getElementById('room-input');
+        if (!input) return;
+        const code = input.value.trim();
         if (code.length === 4) {
             currentRoom = code.toUpperCase();
             document.getElementById('menu-login').style.display = 'none';
             document.getElementById('menu-lobby').style.display = 'flex';
             document.getElementById('display-room-name').innerText = "SALA: " + currentRoom;
-            
             socket.emit('join-room', currentRoom);
         } else {
             alert("Introduce un código de 4 cifras");
         }
     }
 
-    // 2. Al dar click en ¡LISTO! (Menú 2)
     function toggleReady() {
         isReady = !isReady;
         const btn = document.getElementById('ready-btn');
         btn.innerText = isReady ? "¡ESPERANDO!" : "¡LISTO!";
         btn.style.background = isReady ? "#555" : "#fbff00";
         btn.style.color = isReady ? "white" : "black";
-        
         socket.emit('toggle-ready', currentRoom);
-    }
-
-    // Actualizar los contadores de la Lobby
-    socket.on('lobby-update', (data) => {
-        document.getElementById('player-count').innerText = `${data.playersInRoom}/10`;
-        document.getElementById('ready-count').innerText = data.readyCount;
-        document.getElementById('total-count').innerText = data.playersInRoom;
-    });
-
-    // Cuando todos están listos, el servidor arranca la carrera
-    socket.on('begin-countdown', () => {
-        document.getElementById('overlay').style.display = 'none';
-        startRaceLocal();
-    });
-        const roomInput = prompt("CÓDIGO DE SALA:", "SALA1");
-        if (roomInput) {
-            currentRoom = roomInput.toUpperCase();
-            socket.emit('join-room', currentRoom);
-            socket.emit('start-request', currentRoom);
-        }
     }
 
     socket.on('init-player', (data) => {
         playerNumber = data.num;
-        currentRoom = data.room;
         document.getElementById('player-id').innerText = playerNumber;
     });
 
-    socket.on('begin-countdown', () => startRaceLocal());
-    socket.on('player-moved', (data) => { otherPlayers[data.id] = data; });
+    socket.on('lobby-update', (data) => {
+        document.getElementById('player-count').innerText = data.playersInRoom + "/10";
+        document.getElementById('ready-count').innerText = data.readyCount;
+        document.getElementById('total-count').innerText = data.playersInRoom;
+    });
+
+    socket.on('begin-countdown', () => {
+        document.getElementById('overlay').style.display = 'none';
+        startRaceLocal();
+    });
+
+    socket.on('player-moved', (data) => { 
+        otherPlayers[data.id] = data; 
+    });
+
     socket.on('update-table', (list) => {
         const sorted = list.sort((a,b) => b.laps - a.laps);
         for(let i = 1; i <= 3; i++) {
@@ -149,7 +139,7 @@ const socket = io();
         }
     });
 
-    // --- TU LÓGICA DE JUEGO (INTACTA) ---
+    // --- LÓGICA DE JUEGO ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const mCanvas = document.getElementById('minimapCanvas');
@@ -170,7 +160,7 @@ const socket = io();
         document.getElementById('light-y').className = 'light';
         document.getElementById('light-g').className = 'light';
 
-        // Reset físico tal cual lo tenías
+        // Tus posiciones originales
         player.x = 1200 + (playerNumber * 120); player.y = 1000; player.angle = 0;
         player.velX = 0; player.velY = 0; player.speed = 0;
         laps = 0; document.getElementById('lap-num').innerText = "0";
@@ -209,7 +199,6 @@ const socket = io();
                 inX /= mag; inY /= mag;
             }
 
-            // TUS FÍSICAS (Sin cambios)
             let targetMax = player.onGrass ? 22 : 35;
             let curS = player.speed * 10;
             let accel = player.onGrass ? 0.3 : (curS < 320 ? 1.5 : 0.09);
@@ -225,7 +214,7 @@ const socket = io();
 
             player.x += player.velX; player.y += player.velY;
 
-            // Checkpoints y Laps
+            // Checkpoints Originales
             if (player.x > 6000 && player.y > 4000) {
                 if (!hasCheckpoint) {
                     hasCheckpoint = true;
@@ -253,45 +242,47 @@ const socket = io();
                 player.angle += diff * 0.15;
             }
 
-            // Envío de posición a otros
             socket.emit('update-me', { room: currentRoom, x: player.x, y: player.y, angle: player.angle, num: playerNumber });
 
             let kmh = Math.round(player.speed * 10);
             document.getElementById('speed-num').innerText = kmh;
             document.getElementById('needle').style.transform = `rotate(${-90 + (kmh * 0.51)}deg)`;
+
+            draw(); // <--- Dibujo corregido dentro del loop
         }
-        draw();
         requestAnimationFrame(update);
     }
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
+        
         let zoom = raceStarted ? (0.65 - (player.speed / 280)) : 0.35;
         ctx.translate(canvas.width/2, canvas.height/2);
         ctx.scale(zoom, zoom);
         ctx.translate(-player.x, -player.y);
 
-        // Pista (Tu diseño)
+        // Pista
         ctx.strokeStyle = "#7a7a7a"; ctx.lineWidth = 850; trackPath(ctx); ctx.stroke();
         ctx.setLineDash([60, 60]); ctx.lineWidth = 625; ctx.strokeStyle = "white"; trackPath(ctx); ctx.stroke();
         ctx.strokeStyle = "#e00000"; ctx.lineDashOffset = 60; trackPath(ctx); ctx.stroke();
         ctx.setLineDash([]); ctx.strokeStyle = "#111111"; ctx.lineWidth = 560; trackPath(ctx); ctx.stroke();
-        ctx.fillStyle = "white"; ctx.fillRect(1400, 720, 100, 560);
+        
+        ctx.fillStyle = "white"; 
+        ctx.fillRect(1400, 720, 100, 560);
 
-        // Dibujar otros jugadores
+        // Detección Hierba
+        ctx.lineWidth = 560;
+        trackPath(ctx); 
+        player.onGrass = !ctx.isPointInStroke(player.x, player.y);
+
         for(let id in otherPlayers){
             let p = otherPlayers[id];
             drawCar(p.x, p.y, p.angle, p.num, "red");
         }
-
-        // Dibujar mi coche (Tu diseño)
         drawCar(player.x, player.y, player.angle, playerNumber, "#fbff00");
 
         ctx.restore();
-        const trackArea = new Path2D(getPathString(1));
-        ctx.lineWidth = 560; 
-        player.onGrass = !ctx.isPointInStroke(trackArea, player.x, player.y);
         drawMinimap();
     }
 
@@ -304,13 +295,9 @@ const socket = io();
         ctx.fillStyle = "black"; ctx.font = "bold 24px Arial"; ctx.textAlign = "center";
         ctx.fillText(n, -25, 8); 
         ctx.restore();
-        ctx.fillStyle = "white"; ctx.font = "bold 30px Courier New"; ctx.textAlign = "center";
-        ctx.fillText("P" + n, x, y - 60);
-    }
-
-    function getPathString(s) {
-        const x=1000*s, y=1000*s, w=6000*s, h=4000*s, r=800*s;
-        return `M ${x+r} ${y} L ${x+w-r} ${y} Q ${x+w} ${y} ${x+w} ${y+r} L ${x+w} ${y+h-r} Q ${x+w} ${y+h} ${x+w-r} ${y+h} L ${x+r} ${y+h} Q ${x} ${y+h} ${x} ${y+h-r} L ${x} ${y+r} Q ${x} ${y} ${x+r} ${y} Z`;
+        
+        ctx.fillStyle = "white"; ctx.font = "bold 35px Arial"; ctx.textAlign = "center";
+        ctx.fillText("#" + n, x, y - 80);
     }
 
     function drawMinimap() {
@@ -321,11 +308,11 @@ const socket = io();
         mCtx.strokeStyle = "rgba(255,255,255,0.5)";
         mCtx.lineWidth = 2; trackPath(mCtx, s); mCtx.stroke();
         
-        // Otros en minimapa
         mCtx.fillStyle = "red";
-        for(let id in otherPlayers) { mCtx.beginPath(); mCtx.arc(otherPlayers[id].x*s, otherPlayers[id].y*s, 4, 0, 7); mCtx.fill(); }
+        for(let id in otherPlayers) { 
+            mCtx.beginPath(); mCtx.arc(otherPlayers[id].x*s, otherPlayers[id].y*s, 4, 0, Math.PI*2); mCtx.fill(); 
+        }
 
-        // Yo en minimapa
         mCtx.fillStyle = "#fbff00";
         mCtx.beginPath(); mCtx.arc(player.x*s, player.y*s, 6, 0, Math.PI*2); mCtx.fill();
         mCtx.restore();
@@ -333,10 +320,8 @@ const socket = io();
 
     window.onkeydown = e => keys[e.key] = true;
     window.onkeyup = e => keys[e.key] = false;
+
     update();
 </script>
 </body>
 </html>
-
-
-
