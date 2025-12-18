@@ -10,7 +10,6 @@
         button { padding: 20px 40px; font-size: 30px; background: #fbff00; border: none; cursor: pointer; font-family: 'Arial Black'; border-radius: 10px; transition: 0.2s; margin: 10px; }
         button:hover { background: #fffb00; transform: scale(1.05); }
         
-        /* Estilos del Selector de Coche */
         .car-selector { display: flex; gap: 10px; margin: 20px 0; }
         .car-card { 
             background: rgba(255,255,255,0.1); border: 2px solid #555; 
@@ -60,15 +59,15 @@
             </div>
             <div class="car-card" onclick="selectCar('acelerador', this)">
                 <h4>SPRINTER</h4>
-                <p>Top Acel (250)</p>
+                <p>Top 250 / Acel ++</p>
             </div>
             <div class="car-card" onclick="selectCar('offroad', this)">
                 <h4>RALLY</h4>
-                <p>120 km/h Césped</p>
+                <p>Top 120 Césped</p>
             </div>
             <div class="car-card" onclick="selectCar('veloz', this)">
                 <h4>SONIC</h4>
-                <p>Top Speed (400)</p>
+                <p>Top 400 / Acel --</p>
             </div>
         </div>
 
@@ -110,19 +109,18 @@
     <canvas id="gameCanvas"></canvas>
 
 <script>
-// --- LÓGICA ONLINE ---
     const socket = io();
     let currentRoom = "";
     let otherPlayers = {};
     let playerNumber = "?";
     let isReady = false;
 
-    // --- CONFIGURACIÓN DE CLASES ACTUALIZADA ---
+    // --- CONFIGURACIÓN DE CLASES ---
     const CAR_TYPES = {
         balanceado: { top: 35, accel: 1.2, grassMax: 7.2, color: "#fbff00" },
-        acelerador: { top: 25, accel: 5.0, grassMax: 6.0, color: "#00ccff" }, // 250 km/h, acelera instant
-        offroad:    { top: 30, accel: 1.0, grassMax: 12.0, color: "#44ff44" }, // 120 km/h en césped
-        veloz:      { top: 40, accel: 0.3, grassMax: 5.0, color: "#ff4444" }   // 400 km/h, acelera lento
+        acelerador: { top: 25, accel: 6.0, grassMax: 6.0, color: "#00ccff" },
+        offroad:    { top: 30, accel: 1.0, grassMax: 12.0, color: "#44ff44" },
+        veloz:      { top: 40, accel: 0.18, grassMax: 5.0, color: "#ff4444" }
     };
     let selectedCarType = "balanceado";
 
@@ -185,7 +183,6 @@
         }
     });
 
-// --- LÓGICA DE JUEGO ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const mCanvas = document.getElementById('minimapCanvas');
@@ -248,16 +245,13 @@
                 inX /= mag; inY /= mag;
             }
 
-            // --- FÍSICAS BASADAS EN CLASE ---
             let stats = CAR_TYPES[selectedCarType];
             let targetMax = player.onGrass ? stats.grassMax : stats.top; 
-            let curS = player.speed * 10;
             
-            // Aceleración dinámica ajustada para las nuevas stats
-            let accel = player.onGrass ? 0.2 : (curS < (stats.top * 9) ? stats.accel : 0.1);
+            let accel = player.onGrass ? 0.2 : stats.accel;
 
             player.velX += inX * accel; player.velY += inY * accel;
-            player.velX *= 0.97; player.velY *= 0.97; 
+            player.velX *= 0.98; player.velY *= 0.98; 
             player.speed = Math.sqrt(player.velX**2 + player.velY**2);
             
             if (player.speed > targetMax) {
@@ -296,17 +290,13 @@
             }
 
             socket.emit('update-me', { 
-                room: currentRoom, 
-                x: player.x, 
-                y: player.y, 
-                angle: player.angle, 
-                num: playerNumber,
-                color: player.color 
+                room: currentRoom, x: player.x, y: player.y, angle: player.angle, 
+                num: playerNumber, color: player.color 
             });
 
             let kmh = Math.round(player.speed * 10);
             document.getElementById('speed-num').innerText = kmh;
-            document.getElementById('needle').style.transform = `rotate(${-90 + (kmh * 0.4)}deg)`;
+            document.getElementById('needle').style.transform = `rotate(${-90 + (kmh * 0.45)}deg)`;
 
             draw(); 
         }
@@ -316,7 +306,6 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
-        
         let zoom = raceStarted ? (0.65 - (player.speed / 280)) : 0.35;
         ctx.translate(canvas.width/2, canvas.height/2);
         ctx.scale(zoom, zoom);
@@ -326,47 +315,38 @@
         ctx.setLineDash([60, 60]); ctx.lineWidth = 625; ctx.strokeStyle = "white"; trackPath(ctx); ctx.stroke();
         ctx.strokeStyle = "#e00000"; ctx.lineDashOffset = 60; trackPath(ctx); ctx.stroke();
         ctx.setLineDash([]); ctx.strokeStyle = "#111111"; ctx.lineWidth = 560; trackPath(ctx); ctx.stroke();
-        
-        ctx.fillStyle = "white"; 
-        ctx.fillRect(1400, 720, 100, 560); 
+        ctx.fillStyle = "white"; ctx.fillRect(1400, 720, 100, 560); 
 
         for(let id in otherPlayers){
             let p = otherPlayers[id];
             drawCar(p.x, p.y, p.angle, p.num, p.color || "red");
         }
         drawCar(player.x, player.y, player.angle, playerNumber, player.color);
-
         ctx.restore();
         drawMinimap();
     }
 
     function drawCar(x, y, a, n, color) {
         ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(a);
+        ctx.translate(x, y); ctx.rotate(a);
         ctx.fillStyle = color; ctx.fillRect(-55, -28, 110, 56);
         ctx.fillStyle = "black"; ctx.fillRect(15, -20, 25, 40);
         ctx.fillStyle = "black"; ctx.font = "bold 24px Arial"; ctx.textAlign = "center";
-        ctx.fillText(n, -25, 8); 
-        ctx.restore();
-        
+        ctx.fillText(n, -25, 8); ctx.restore();
         ctx.fillStyle = "white"; ctx.font = "bold 35px Arial"; ctx.textAlign = "center";
         ctx.fillText("#" + n, x, y - 80);
     }
 
     function drawMinimap() {
         mCtx.clearRect(0,0, mCanvas.width, mCanvas.height);
-        mCtx.save();
-        mCtx.translate(35, 35);
+        mCtx.save(); mCtx.translate(35, 35);
         let s = 0.03;
         mCtx.strokeStyle = "rgba(255,255,255,0.3)";
         mCtx.lineWidth = 15; trackPath(mCtx, s); mCtx.stroke();
-        
         for(let id in otherPlayers) { 
             mCtx.fillStyle = otherPlayers[id].color || "red";
             mCtx.beginPath(); mCtx.arc(otherPlayers[id].x*s, otherPlayers[id].y*s, 4, 0, Math.PI*2); mCtx.fill(); 
         }
-
         mCtx.fillStyle = player.color;
         mCtx.beginPath(); mCtx.arc(player.x*s, player.y*s, 6, 0, Math.PI*2); mCtx.fill();
         mCtx.restore();
@@ -374,7 +354,6 @@
 
     window.onkeydown = e => keys[e.key] = true;
     window.onkeyup = e => keys[e.key] = false;
-
     update();
 </script>
 </body>
