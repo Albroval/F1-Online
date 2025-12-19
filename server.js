@@ -17,7 +17,6 @@ io.on('connection', (socket) => {
             rooms[roomId] = { players: {} };
         }
         
-        // Creamos al jugador con estado "ready: false"
         const pNum = Object.keys(rooms[roomId].players).length + 1;
         rooms[roomId].players[socket.id] = { 
             id: socket.id, 
@@ -32,7 +31,6 @@ io.on('connection', (socket) => {
 
     socket.on('toggle-ready', (roomId) => {
         if (rooms[roomId] && rooms[roomId].players[socket.id]) {
-            // Cambiamos el estado
             rooms[roomId].players[socket.id].ready = !rooms[roomId].players[socket.id].ready;
             
             const playersArray = Object.values(rooms[roomId].players);
@@ -41,7 +39,6 @@ io.on('connection', (socket) => {
 
             broadcastLobbyUpdate(roomId);
 
-            // SI TODOS ESTÁN LISTOS (y hay al menos 1 jugador)
             if (readyCount === totalPlayers && totalPlayers > 0) {
                 io.to(roomId).emit('begin-countdown');
             }
@@ -53,6 +50,12 @@ io.on('connection', (socket) => {
             socket.to(data.room).emit('player-moved', data);
         }
     });
+
+    // --- ÚNICO CAMBIO: ESCUCHA DE CAMBIO DE MAPA ---
+    socket.on('change-map-request', (data) => {
+        io.to(data.room).emit('map-changed', data.mapIndex);
+    });
+    // ----------------------------------------------
 
     socket.on('sync-laps', (data) => {
         if (data.room && rooms[data.room] && rooms[data.room].players[socket.id]) {
