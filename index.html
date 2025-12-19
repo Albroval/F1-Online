@@ -106,12 +106,11 @@
     let sonicNitroTime = 0, sonicCooldown = 0, currentMapIndex = 0;
     const NITRO_DURATION = 4, NITRO_COOLDOWN = 15;
     
-    // DEFINICIÓN DE LOS 4 MAPAS
     const MAPS = [
         { name: "CLÁSICO", w: 6000, h: 4000, r: 800 },
-        { name: "ÓVALO VELOZ", w: 8000, h: 2500, r: 1200 },
-        { name: "SERPIENTE", w: 4500, h: 6000, r: 400 },
-        { name: "URBANO", w: 5000, h: 5000, r: 100 }
+        { name: "ÓVALO VELOZ", w: 12000, h: 800, r: 200 }, 
+        { name: "SERPIENTE", w: 8000, h: 8000, r: 400 },
+        { name: "URBANO", w: 6000, h: 6000, r: 100 }
     ];
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -203,14 +202,14 @@
     const mCanvas = document.getElementById('minimapCanvas');
     const mCtx = mCanvas.getContext('2d');
 
-    let laps = 0, hasCheckpoint = false, raceStarted = false, canMove = false;
-    let player = { x: 1200, y: 1000, angle: 0, velX: 0, velY: 0, speed: 0, onGrass: false, color: "#fbff00" };
+    let laps = 0, hasChk1 = false, hasChk2 = false, raceStarted = false, canMove = false;
+    let player = { x: 2000, y: 2000, angle: 0, velX: 0, velY: 0, speed: 0, onGrass: false, color: "#fbff00" };
     const keys = {};
 
     function startRaceLocal() {
         document.getElementById('overlay').style.display = 'none';
         document.getElementById('lights-container').style.display = 'flex';
-        player.x = 1200 + (playerNumber * 120); player.y = 1000;
+        player.x = 2100 + (playerNumber * 120); player.y = 2000;
         canMove = true; raceStarted = true;
         setTimeout(() => { document.getElementById('light-r').classList.add('red'); }, 500);
         setTimeout(() => { document.getElementById('light-y').classList.add('yellow'); }, 1500);
@@ -220,31 +219,38 @@
 
     function trackPath(c, s = 1) {
         const m = MAPS[currentMapIndex];
-        const x = 1000 * s, y = 1000 * s;
+        const x = 2000 * s, y = 2000 * s;
         const w = m.w * s, h = m.h * s;
 
         c.beginPath();
         if (m.name === "SERPIENTE") {
-            // GEOMETRÍA EN FORMA DE "8" (Extremadamente fácil salirse)
-            c.moveTo(x + w * 0.2, y + h * 0.2);
-            c.bezierCurveTo(x + w * 0.8, y - h * 0.1, x + w * 0.8, y + h * 0.5, x + w * 0.5, y + h * 0.5);
-            c.bezierCurveTo(x + w * 0.2, y + h * 0.5, x + w * 0.2, y + h * 1.1, x + w * 0.8, y + h * 0.8);
-            c.bezierCurveTo(x + w * 1.1, y + h * 0.5, x + w * 0.5, y + h * 0.5, x + w * 0.2, y + h * 0.2);
+            const cx = x + w / 2, cy = y + h / 2;
+            c.moveTo(cx - 300 * s, cy); 
+            c.bezierCurveTo(cx + w, cy - h, cx - w, cy - h, cx + 300 * s, cy);
+            c.bezierCurveTo(cx + w, cy + h, cx - w, cy + h, cx - 300 * s, cy);
+            c.closePath();
         } 
-        else if (m.name === "URBANO") {
-            // CIRCUITO URBANO (6 Curvas de 90 grados exactos)
+        else if (m.name === "ÓVALO VELOZ") {
             c.moveTo(x, y);
-            c.lineTo(x + w * 0.6, y);           // Recta 1
-            c.lineTo(x + w * 0.6, y + h * 0.3); // Curva 1 (90°)
-            c.lineTo(x + w, y + h * 0.3);       // Curva 2 (90°)
-            c.lineTo(x + w, y + h * 0.7);       // Curva 3 (90°)
-            c.lineTo(x + w * 0.4, y + h * 0.7); // Curva 4 (90°)
-            c.lineTo(x + w * 0.4, y + h);       // Curva 5 (90°)
-            c.lineTo(x, y + h);                 // Curva 6 (90°)
+            c.lineTo(x + w, y);
+            c.lineTo(x + w, y + h * 0.3);
+            c.lineTo(x + w * 0.1, y + h * 0.5);
+            c.lineTo(x + w, y + h * 0.7);
+            c.lineTo(x + w, y + h);
+            c.lineTo(x, y + h);
+            c.closePath();
+        }
+        else if (m.name === "URBANO") {
+            const d = 1000 * s;
+            c.moveTo(x, y);
+            c.lineTo(x + d * 2, y);           c.lineTo(x + d * 2, y + d);
+            c.lineTo(x + d * 4, y + d);       c.lineTo(x + d * 4, y + d * 3);
+            c.lineTo(x + d * 2, y + d * 3);   c.lineTo(x + d * 2, y + d * 2);
+            c.lineTo(x + d, y + d * 2);       c.lineTo(x + d, y + d * 4);
+            c.lineTo(x - d, y + d * 4);       c.lineTo(x - d, y);
             c.closePath();
         } 
         else {
-            // ÓVALO Y CLÁSICO
             const r = m.r * s;
             c.moveTo(x + r, y);
             c.lineTo(x + w - r, y);
@@ -262,8 +268,6 @@
     function update() {
         if (raceStarted) {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            
-            // Detección de hierba
             ctx.lineWidth = 600; trackPath(ctx);
             player.onGrass = !ctx.isPointInStroke(player.x, player.y);
 
@@ -275,10 +279,6 @@
                 if (keys['d'] || keys['D'] || keys['ArrowRight']) inX += 1;
                 if (keys[' '] && selectedCarType === 'veloz' && sonicCooldown <= 0 && player.speed > 20) {
                     sonicNitroTime = NITRO_DURATION; sonicCooldown = NITRO_COOLDOWN;
-                    if (player.speed < 32) {
-                        let ratio = 32 / player.speed;
-                        player.velX *= ratio; player.velY *= ratio; player.speed = 32;
-                    }
                 }
             }
             if (inX !== 0 || inY !== 0) { let mag = Math.sqrt(inX*inX + inY*inY); inX /= mag; inY /= mag; }
@@ -288,46 +288,33 @@
 
             if (selectedCarType === 'veloz') {
                 if (sonicNitroTime > 0) {
-                    sonicNitroTime -= 1/60; stats.top = 40; 
-                    currentGrip = 0.09; 
-                    playNitroSound(true);
-                    particles.push({x: player.x, y: player.y, r: 10+Math.random()*15, life: 1, c: Math.random() > 0.5 ? "#ffaa00" : "#555"});
-                } else {
-                    playNitroSound(false);
-                    if (sonicCooldown > 0) sonicCooldown -= 1/60;
-                }
-                let progress = (sonicCooldown <= 0) ? 100 : ((NITRO_COOLDOWN - sonicCooldown) / NITRO_COOLDOWN) * 100;
-                document.getElementById('nitro-bar').style.width = progress + "%";
+                    sonicNitroTime -= 1/60; stats.top = 45; currentGrip = 0.08; playNitroSound(true);
+                    particles.push({x: player.x, y: player.y, r: 10+Math.random()*15, life: 1, c: "#ffaa00"});
+                } else { playNitroSound(false); if (sonicCooldown > 0) sonicCooldown -= 1/60; }
+                document.getElementById('nitro-bar').style.width = ((NITRO_COOLDOWN - Math.max(0, sonicCooldown)) / NITRO_COOLDOWN * 100) + "%";
             }
 
             playEngineSound(50 + (player.speed * 4));
-
             let targetMax = player.onGrass ? stats.grassMax : stats.top; 
-            let frictionBase = (selectedCarType === 'veloz') ? 0.9995 : 0.992;
             let accel = player.onGrass ? 0.3 : stats.accel;
 
-            if (inX !== 0 || inY !== 0) {
-                player.velX += inX * accel; player.velY += inY * accel;
-            } else {
-                let coast = (selectedCarType === 'veloz') ? 0.998 : 0.98;
-                player.velX *= coast; player.velY *= coast;
-            }
+            if (inX !== 0 || inY !== 0) { player.velX += inX * accel; player.velY += inY * accel; } 
+            else { player.velX *= 0.98; player.velY *= 0.98; }
 
-            player.velX *= frictionBase; player.velY *= frictionBase;
+            player.velX *= 0.992; player.velY *= 0.992;
             player.speed = Math.sqrt(player.velX**2 + player.velY**2);
             if (player.speed > targetMax) { player.velX *= (targetMax/player.speed); player.velY *= (targetMax/player.speed); player.speed = targetMax; }
-
             player.x += player.velX; player.y += player.velY;
 
-            // CHECKPOINT DINÁMICO (Adaptado a las nuevas formas)
+            // SISTEMA ANTI-ATRAJO DOBLE CHECKPOINT
             const m = MAPS[currentMapIndex];
-            // Punto de control: Al alejarse de la salida hacia el fondo del mapa
-            if (player.y > (1000 + m.h * 0.6) && !hasCheckpoint) {
-                hasCheckpoint = true; document.getElementById('chk-val').innerText = "OK"; document.getElementById('chk-val').style.color = "#00ff00";
+            if (player.y < (2000 + m.h * 0.3) && !hasChk1) hasChk1 = true;
+            if (player.y > (2000 + m.h * 0.7) && hasChk1) {
+                hasChk2 = true; document.getElementById('chk-val').innerText = "OK"; document.getElementById('chk-val').style.color = "#00ff00";
             }
-            // Meta: Cerca de la posición inicial
-            if (player.x > 1300 && player.x < 1600 && player.y < 1500 && hasCheckpoint) {
-                laps++; document.getElementById('lap-num').innerText = laps; hasCheckpoint = false;
+            if (player.x > 2000 && player.x < 2600 && player.y > 1900 && player.y < 2150 && hasChk2) {
+                laps++; document.getElementById('lap-num').innerText = laps;
+                hasChk1 = false; hasChk2 = false;
                 document.getElementById('chk-val').innerText = "PENDIENTE"; document.getElementById('chk-val').style.color = "red";
                 socket.emit('sync-laps', { room: currentRoom, laps: laps });
             }
@@ -353,17 +340,18 @@
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
-        let zoom = raceStarted ? (0.65 - (player.speed / 350)) : 0.35;
+        let zoom = raceStarted ? (0.65 - (player.speed / 400)) : 0.25;
         ctx.translate(canvas.width/2, canvas.height/2); ctx.scale(zoom, zoom); ctx.translate(-player.x, -player.y);
         
-        // Pista
-        ctx.strokeStyle = "#7a7a7a"; ctx.lineWidth = 850; trackPath(ctx); ctx.stroke();
-        ctx.setLineDash([60, 60]); ctx.lineWidth = 625; ctx.strokeStyle = "white"; trackPath(ctx); ctx.stroke();
-        ctx.strokeStyle = "#e00000"; ctx.lineDashOffset = 60; trackPath(ctx); ctx.stroke();
-        ctx.setLineDash([]); ctx.strokeStyle = "#111111"; ctx.lineWidth = 560; trackPath(ctx); ctx.stroke();
+        ctx.strokeStyle = "#444"; ctx.lineWidth = 800; trackPath(ctx); ctx.stroke();
+        if(MAPS[currentMapIndex].name === "URBANO") {
+            ctx.setLineDash([30, 60]); ctx.lineWidth = 10; ctx.strokeStyle = "white"; trackPath(ctx); ctx.stroke();
+            ctx.setLineDash([]); ctx.strokeStyle = "#222"; ctx.lineWidth = 580; trackPath(ctx); ctx.stroke();
+        } else {
+            ctx.strokeStyle = "#111"; ctx.lineWidth = 600; trackPath(ctx); ctx.stroke();
+        }
         
-        // Meta
-        ctx.fillStyle = "white"; ctx.fillRect(1400, 720, 100, 560); 
+        ctx.fillStyle = "white"; ctx.fillRect(2000, 1980, 500, 40); 
 
         particles.forEach((p, i) => {
             ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
@@ -386,10 +374,10 @@
     }
 
     function drawMinimap() {
-        mCtx.clearRect(0,0, mCanvas.width, mCanvas.height); mCtx.save(); mCtx.translate(35, 35); let s = 0.03;
-        mCtx.strokeStyle = "rgba(255,255,255,0.3)"; mCtx.lineWidth = 15; trackPath(mCtx, s); mCtx.stroke();
-        for(let id in otherPlayers) { mCtx.fillStyle = otherPlayers[id].color || "red"; mCtx.beginPath(); mCtx.arc(otherPlayers[id].x*s, otherPlayers[id].y*s, 4, 0, Math.PI*2); mCtx.fill(); }
-        mCtx.fillStyle = player.color; mCtx.beginPath(); mCtx.arc(player.x*s, player.y*s, 6, 0, Math.PI*2); mCtx.fill(); mCtx.restore();
+        mCtx.clearRect(0,0, mCanvas.width, mCanvas.height); mCtx.save(); mCtx.translate(50, 50); let s = 0.02;
+        mCtx.strokeStyle = "rgba(255,255,255,0.3)"; mCtx.lineWidth = 10; trackPath(mCtx, s); mCtx.stroke();
+        for(let id in otherPlayers) { mCtx.fillStyle = otherPlayers[id].color || "red"; mCtx.beginPath(); mCtx.arc(otherPlayers[id].x*s, otherPlayers[id].y*s, 3, 0, Math.PI*2); mCtx.fill(); }
+        mCtx.fillStyle = player.color; mCtx.beginPath(); mCtx.arc(player.x*s, player.y*s, 5, 0, Math.PI*2); mCtx.fill(); mCtx.restore();
     }
 
     window.onkeydown = e => keys[e.key] = true;
