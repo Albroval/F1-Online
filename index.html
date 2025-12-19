@@ -32,7 +32,7 @@
         .record-row { display: flex; justify-content: space-between; font-size: 15px; margin: 6px 0; font-family: 'Courier New'; }
         
         #nitro-container { position: absolute; bottom: 170px; left: 50%; transform: translateX(-50%); width: 200px; height: 15px; background: #333; border: 2px solid #fbff00; border-radius: 10px; display: none; overflow: hidden; }
-        #nitro-bar { width: 100%; height: 100%; background: #00ccff; transition: width 0.1s; }
+        #nitro-bar { width: 100%; height: 100%; background: #00ccff; transition: width 0.1s; box-shadow: 0 0 10px #00ccff; }
 
         #dashboard { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 240px; height: 140px; background: rgba(0,0,0,0.9); border-radius: 120px 120px 15px 15px; border: 4px solid #fbff00; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 15px; z-index: 100; }
         #needle { position: absolute; bottom: 50px; width: 4px; height: 90px; background: #ff0000; transform-origin: bottom center; transition: transform 0.1s; }
@@ -91,15 +91,36 @@
 <script>
     const socket = io();
     let currentRoom = "", otherPlayers = {}, playerNumber = "?", isReady = false;
-    
     let sonicNitroTime = 0, sonicCooldown = 0;
     const NITRO_DURATION = 4, NITRO_COOLDOWN = 15;
+    
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let motorOsc = null, nitroOsc = null;
+    let particles = [];
+
+    function playEngineSound(freq) {
+        if (!motorOsc) {
+            motorOsc = audioCtx.createOscillator(); motorOsc.type = 'sawtooth';
+            let gain = audioCtx.createGain(); gain.gain.value = 0.04;
+            motorOsc.connect(gain); gain.connect(audioCtx.destination); motorOsc.start();
+        }
+        motorOsc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
+    }
+
+    function playNitroSound(active) {
+        if (active && !nitroOsc) {
+            nitroOsc = audioCtx.createOscillator(); nitroOsc.type = 'square';
+            let gain = audioCtx.createGain(); gain.gain.value = 0.03;
+            nitroOsc.connect(gain); gain.connect(audioCtx.destination); nitroOsc.start();
+        } else if (!active && nitroOsc) { try { nitroOsc.stop(); } catch(e){} nitroOsc = null; }
+        if (nitroOsc) nitroOsc.frequency.setValueAtTime(80 + Math.random()*60, audioCtx.currentTime);
+    }
 
     const CAR_TYPES = {
         balanceado: { top: 32, accel: 1.2, grassMax: 10.0, color: "#fbff00", grip: 0.15 },
         acelerador: { top: 25, accel: 6.0, grassMax: 10.0, color: "#00ccff", grip: 0.15 },
-        offroad:    { top: 32, accel: 1.2, grassMax: 20.0, color: "#44ff44", grip: 0.25 },
-        veloz:      { top: 32, accel: 0.12, grassMax: 5.0, color: "#ff4444", grip: 0.08 }
+        offroad:    { top: 32, accel: 1.2, grassMax: 20.0, color: "#44ff44", grip: 0.20 },
+        veloz:      { top: 32, accel: 0.12, grassMax: 5.0, color: "#ff4444", grip: 0.15 }
     };
     let selectedCarType = "balanceado";
 
@@ -171,6 +192,7 @@
 
     function update() {
         if (raceStarted) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             ctx.lineWidth = 600; trackPath(ctx);
             player.onGrass = !ctx.isPointInStroke(player.x, player.y);
 
@@ -191,23 +213,24 @@
 
             if (selectedCarType === 'veloz') {
                 if (sonicNitroTime > 0) {
-                    sonicNitroTime -= 1/60; stats.top = 40; currentGrip = 0.04;
-                } else if (sonicCooldown > 0) { sonicCooldown -= 1/60; }
+                    sonicNitroTime -= 1/60; stats.top = 40; currentGrip = 0.10;
+                    playNitroSound(true);
+                    particles.push({x: player.x, y: player.y, r: 10+Math.random()*15, life: 1, c: Math.random() > 0.5 ? "#ffaa00" : "#555"});
+                } else {
+                    playNitroSound(false);
+                    if (sonicCooldown > 0) sonicCooldown -= 1/60;
+                }
                 let progress = (sonicCooldown <= 0) ? 100 : ((NITRO_COOLDOWN - sonicCooldown) / NITRO_COOLDOWN) * 100;
                 document.getElementById('nitro-bar').style.width = progress + "%";
-                document.getElementById('nitro-bar').style.background = (sonicCooldown <= 0) ? "#00ff00" : (sonicNitroTime > 0 ? "#ffaa00" : "#00ccff");
             }
+
+            playEngineSound(50 + (player.speed * 4));
 
             let targetMax = player.onGrass ? stats.grassMax : stats.top; 
             let frictionBase = (selectedCarType === 'veloz') ? 0.9995 : 0.992;
             let accel = player.onGrass ? 0.3 : stats.accel;
 
             if (inX !== 0 || inY !== 0) {
-                if (selectedCarType === 'veloz') {
-                    let curS = Math.sqrt(player.velX**2 + player.velY**2);
-                    player.velX = (player.velX * 0.5) + (inX * curS * 0.5);
-                    player.velY = (player.velY * 0.5) + (inY * curS * 0.5);
-                }
                 player.velX += inX * accel; player.velY += inY * accel;
             } else {
                 let coast = (selectedCarType === 'veloz') ? 0.998 : 0.98;
@@ -254,9 +277,16 @@
         ctx.translate(canvas.width/2, canvas.height/2); ctx.scale(zoom, zoom); ctx.translate(-player.x, -player.y);
         ctx.strokeStyle = "#7a7a7a"; ctx.lineWidth = 850; trackPath(ctx); ctx.stroke();
         ctx.setLineDash([60, 60]); ctx.lineWidth = 625; ctx.strokeStyle = "white"; trackPath(ctx); ctx.stroke();
-        ctx.strokeStyle = "#e00000"; ctx.lineDashOffset = 60; trackPath(ctx); ctx.stroke();
         ctx.setLineDash([]); ctx.strokeStyle = "#111111"; ctx.lineWidth = 560; trackPath(ctx); ctx.stroke();
         ctx.fillStyle = "white"; ctx.fillRect(1400, 720, 100, 560); 
+
+        particles.forEach((p, i) => {
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+            ctx.fillStyle = p.c; ctx.globalAlpha = p.life; ctx.fill();
+            p.life -= 0.05; if(p.life <= 0) particles.splice(i, 1);
+        });
+        ctx.globalAlpha = 1;
+
         for(let id in otherPlayers){ let p = otherPlayers[id]; drawCar(p.x, p.y, p.angle, p.num, p.color || "red"); }
         drawCar(player.x, player.y, player.angle, playerNumber, player.color);
         ctx.restore(); drawMinimap();
