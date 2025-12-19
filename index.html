@@ -108,7 +108,7 @@
     
     const MAPS = [
         { name: "CLÁSICO", w: 6000, h: 4000, r: 800 },
-        { name: "ÓVALO VELOZ", w: 12000, h: 800, r: 200 }, 
+        { name: "ÓVALO VELOZ", w: 12000, h: 1200, r: 200 }, 
         { name: "SERPIENTE", w: 8000, h: 8000, r: 400 },
         { name: "URBANO", w: 6000, h: 6000, r: 100 }
     ];
@@ -138,7 +138,7 @@
         balanceado: { top: 32, accel: 1.2, grassMax: 10.0, color: "#fbff00", grip: 0.15 },
         acelerador: { top: 25, accel: 6.0, grassMax: 10.0, color: "#00ccff", grip: 0.15 },
         offroad:    { top: 32, accel: 1.2, grassMax: 20.0, color: "#44ff44", grip: 0.20 },
-        veloz:      { top: 32, accel: 0.12, grassMax: 5.0, color: "#ff4444", grip: 0.15 }
+        veloz:      { top: 40, accel: 0.4, grassMax: 5.0, color: "#ff4444", grip: 0.12 }
     };
     let selectedCarType = "balanceado";
 
@@ -187,13 +187,16 @@
         document.getElementById('ready-count').innerText = data.readyCount;
         document.getElementById('total-count').innerText = data.playersInRoom;
     });
+
     socket.on('begin-countdown', () => startRaceLocal());
     socket.on('player-moved', (data) => { otherPlayers[data.id] = data; });
+    
     socket.on('update-table', (list) => {
         const sorted = list.sort((a,b) => b.laps - a.laps);
         for(let i = 1; i <= 3; i++) {
             const div = document.getElementById(`rank-${i}`);
             if (sorted[i-1]) div.innerText = `${i}º #${sorted[i-1].num} - ${sorted[i-1].laps} V`;
+            else div.innerText = `${i}º ---`;
         }
     });
 
@@ -203,13 +206,16 @@
     const mCtx = mCanvas.getContext('2d');
 
     let laps = 0, hasChk1 = false, hasChk2 = false, raceStarted = false, canMove = false;
-    let player = { x: 2000, y: 2000, angle: 0, velX: 0, velY: 0, speed: 0, onGrass: false, color: "#fbff00" };
+    let player = { x: 2000, y: 1700, angle: 0, velX: 0, velY: 0, speed: 0, onGrass: false, color: "#fbff00" };
     const keys = {};
 
     function startRaceLocal() {
         document.getElementById('overlay').style.display = 'none';
         document.getElementById('lights-container').style.display = 'flex';
-        player.x = 2100 + (playerNumber * 120); player.y = 2000;
+        // Spawn alineado en la meta
+        player.x = 2000; 
+        player.y = 1700 + (playerNumber * 80);
+        player.velX = 0; player.velY = 0; player.speed = 0; player.angle = 0;
         canMove = true; raceStarted = true;
         setTimeout(() => { document.getElementById('light-r').classList.add('red'); }, 500);
         setTimeout(() => { document.getElementById('light-y').classList.add('yellow'); }, 1500);
@@ -221,7 +227,6 @@
         const m = MAPS[currentMapIndex];
         const x = 2000 * s, y = 2000 * s;
         const w = m.w * s, h = m.h * s;
-
         c.beginPath();
         if (m.name === "SERPIENTE") {
             const cx = x + w / 2, cy = y + h / 2;
@@ -229,38 +234,29 @@
             c.bezierCurveTo(cx + w, cy - h, cx - w, cy - h, cx + 300 * s, cy);
             c.bezierCurveTo(cx + w, cy + h, cx - w, cy + h, cx - 300 * s, cy);
             c.closePath();
-        } 
-        else if (m.name === "ÓVALO VELOZ") {
+        } else if (m.name === "ÓVALO VELOZ") {
             c.moveTo(x, y);
             c.lineTo(x + w, y);
-            c.lineTo(x + w, y + h * 0.3);
-            c.lineTo(x + w * 0.1, y + h * 0.5);
-            c.lineTo(x + w, y + h * 0.7);
             c.lineTo(x + w, y + h);
             c.lineTo(x, y + h);
             c.closePath();
-        }
-        else if (m.name === "URBANO") {
+        } else if (m.name === "URBANO") {
             const d = 1000 * s;
             c.moveTo(x, y);
-            c.lineTo(x + d * 2, y);           c.lineTo(x + d * 2, y + d);
-            c.lineTo(x + d * 4, y + d);       c.lineTo(x + d * 4, y + d * 3);
-            c.lineTo(x + d * 2, y + d * 3);   c.lineTo(x + d * 2, y + d * 2);
-            c.lineTo(x + d, y + d * 2);       c.lineTo(x + d, y + d * 4);
-            c.lineTo(x - d, y + d * 4);       c.lineTo(x - d, y);
+            c.lineTo(x + d * 2, y); c.lineTo(x + d * 2, y + d);
+            c.lineTo(x + d * 4, y + d); c.lineTo(x + d * 4, y + d * 3);
+            c.lineTo(x + d * 2, y + d * 3); c.lineTo(x + d * 2, y + d * 2);
+            c.lineTo(x + d, y + d * 2); c.lineTo(x + d, y + d * 4);
+            c.lineTo(x - d, y + d * 4); c.lineTo(x - d, y);
             c.closePath();
-        } 
-        else {
+        } else {
             const r = m.r * s;
-            c.moveTo(x + r, y);
-            c.lineTo(x + w - r, y);
+            c.moveTo(x + r, y); c.lineTo(x + w - r, y);
             c.quadraticCurveTo(x + w, y, x + w, y + r);
             c.lineTo(x + w, y + h - r);
             c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-            c.lineTo(x + r, y + h);
-            c.quadraticCurveTo(x, y + h, x, y + h - r);
-            c.lineTo(x, y + r);
-            c.quadraticCurveTo(x, y, x + r, y);
+            c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r);
+            c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y);
             c.closePath();
         }
     }
@@ -268,8 +264,13 @@
     function update() {
         if (raceStarted) {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            ctx.lineWidth = 600; trackPath(ctx);
+            
+            // Detección de hierba exacta
+            ctx.save();
+            ctx.lineWidth = 600; 
+            trackPath(ctx);
             player.onGrass = !ctx.isPointInStroke(player.x, player.y);
+            ctx.restore();
 
             let inX = 0, inY = 0;
             if (canMove) {
@@ -277,61 +278,79 @@
                 if (keys['s'] || keys['S'] || keys['ArrowDown']) inY += 1;
                 if (keys['a'] || keys['A'] || keys['ArrowLeft']) inX -= 1;
                 if (keys['d'] || keys['D'] || keys['ArrowRight']) inX += 1;
-                if (keys[' '] && selectedCarType === 'veloz' && sonicCooldown <= 0 && player.speed > 20) {
+                
+                if (keys[' '] && selectedCarType === 'veloz' && sonicCooldown <= 0 && player.speed > 10) {
                     sonicNitroTime = NITRO_DURATION; sonicCooldown = NITRO_COOLDOWN;
                 }
             }
             if (inX !== 0 || inY !== 0) { let mag = Math.sqrt(inX*inX + inY*inY); inX /= mag; inY /= mag; }
 
             let stats = Object.assign({}, CAR_TYPES[selectedCarType]);
-            let currentGrip = stats.grip;
-
+            
+            // Lógica Sonic corregida (Supera los 145 km/h)
             if (selectedCarType === 'veloz') {
                 if (sonicNitroTime > 0) {
-                    sonicNitroTime -= 1/60; stats.top = 45; currentGrip = 0.08; playNitroSound(true);
-                    particles.push({x: player.x, y: player.y, r: 10+Math.random()*15, life: 1, c: "#ffaa00"});
-                } else { playNitroSound(false); if (sonicCooldown > 0) sonicCooldown -= 1/60; }
+                    sonicNitroTime -= 1/60; 
+                    stats.top = 75; // 750 km/h teóricos
+                    stats.accel = 1.5;
+                    playNitroSound(true);
+                    particles.push({x: player.x, y: player.y, r: 15, life: 1, c: "#00ccff"});
+                } else { 
+                    playNitroSound(false); 
+                    if (sonicCooldown > 0) sonicCooldown -= 1/60; 
+                }
                 document.getElementById('nitro-bar').style.width = ((NITRO_COOLDOWN - Math.max(0, sonicCooldown)) / NITRO_COOLDOWN * 100) + "%";
             }
 
-            playEngineSound(50 + (player.speed * 4));
-            let targetMax = player.onGrass ? stats.grassMax : stats.top; 
+            let targetMax = player.onGrass ? stats.grassMax : stats.top;
             let accel = player.onGrass ? 0.3 : stats.accel;
+            let friction = (selectedCarType === 'veloz' && sonicNitroTime > 0) ? 0.998 : 0.99;
 
-            if (inX !== 0 || inY !== 0) { player.velX += inX * accel; player.velY += inY * accel; } 
-            else { player.velX *= 0.98; player.velY *= 0.98; }
-
-            player.velX *= 0.992; player.velY *= 0.992;
+            player.velX += inX * accel; player.velY += inY * accel;
+            player.velX *= friction; player.velY *= friction;
+            
             player.speed = Math.sqrt(player.velX**2 + player.velY**2);
-            if (player.speed > targetMax) { player.velX *= (targetMax/player.speed); player.velY *= (targetMax/player.speed); player.speed = targetMax; }
+            if (player.speed > targetMax) { 
+                let ratio = targetMax / player.speed;
+                player.velX *= ratio; player.velY *= ratio; 
+                player.speed = targetMax;
+            }
+            
             player.x += player.velX; player.y += player.velY;
 
-            // SISTEMA ANTI-ATRAJO DOBLE CHECKPOINT
+            // Checkpoints y Laps (Meta corregida)
             const m = MAPS[currentMapIndex];
-            if (player.y < (2000 + m.h * 0.3) && !hasChk1) hasChk1 = true;
-            if (player.y > (2000 + m.h * 0.7) && hasChk1) {
-                hasChk2 = true; document.getElementById('chk-val').innerText = "OK"; document.getElementById('chk-val').style.color = "#00ff00";
+            if (player.x > 3000 && !hasChk1) hasChk1 = true;
+            if (player.x < 2500 && player.y > (2000 + m.h * 0.5) && hasChk1) {
+                hasChk2 = true; 
+                document.getElementById('chk-val').innerText = "OK"; 
+                document.getElementById('chk-val').style.color = "#00ff00";
             }
-            if (player.x > 2000 && player.x < 2600 && player.y > 1900 && player.y < 2150 && hasChk2) {
-                laps++; document.getElementById('lap-num').innerText = laps;
+            
+            // Meta: Línea vertical en x=2000
+            if (player.x > 1950 && player.x < 2050 && player.y > 1700 && player.y < 2300 && hasChk2) {
+                laps++;
+                document.getElementById('lap-num').innerText = laps;
                 hasChk1 = false; hasChk2 = false;
-                document.getElementById('chk-val').innerText = "PENDIENTE"; document.getElementById('chk-val').style.color = "red";
+                document.getElementById('chk-val').innerText = "PENDIENTE";
+                document.getElementById('chk-val').style.color = "red";
                 socket.emit('sync-laps', { room: currentRoom, laps: laps });
             }
 
-            if (player.speed > 0.2) {
+            if (player.speed > 0.1) {
                 let targetA = Math.atan2(player.velY, player.velX);
                 let diff = targetA - player.angle;
                 while (diff < -Math.PI) diff += Math.PI * 2;
                 while (diff > Math.PI) diff -= Math.PI * 2;
-                player.angle += diff * currentGrip; 
+                player.angle += diff * stats.grip;
             }
 
             socket.emit('update-me', { room: currentRoom, x: player.x, y: player.y, angle: player.angle, num: playerNumber, color: player.color });
+            
             let kmh = Math.round(player.speed * 10);
             document.getElementById('speed-num').innerText = kmh;
             document.getElementById('needle').style.transform = `rotate(${-90 + (kmh * 0.45)}deg)`;
-            draw(); 
+            draw();
         }
         requestAnimationFrame(update);
     }
@@ -340,18 +359,23 @@
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
-        let zoom = raceStarted ? (0.65 - (player.speed / 400)) : 0.25;
-        ctx.translate(canvas.width/2, canvas.height/2); ctx.scale(zoom, zoom); ctx.translate(-player.x, -player.y);
+        let zoom = raceStarted ? (0.6 - (player.speed / 600)) : 0.3;
+        ctx.translate(canvas.width/2, canvas.height/2);
+        ctx.scale(zoom, zoom);
+        ctx.translate(-player.x, -player.y);
         
-        ctx.strokeStyle = "#444"; ctx.lineWidth = 800; trackPath(ctx); ctx.stroke();
-        if(MAPS[currentMapIndex].name === "URBANO") {
-            ctx.setLineDash([30, 60]); ctx.lineWidth = 10; ctx.strokeStyle = "white"; trackPath(ctx); ctx.stroke();
-            ctx.setLineDash([]); ctx.strokeStyle = "#222"; ctx.lineWidth = 580; trackPath(ctx); ctx.stroke();
-        } else {
-            ctx.strokeStyle = "#111"; ctx.lineWidth = 600; trackPath(ctx); ctx.stroke();
-        }
+        // DIBUJO DE PISTA PROFESIONAL
+        // 1. Piano (Borde Rojo/Blanco)
+        ctx.strokeStyle = "#cc0000"; ctx.lineWidth = 750; trackPath(ctx); ctx.stroke();
+        ctx.setLineDash([50, 50]); ctx.strokeStyle = "white"; trackPath(ctx); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 2. Asfalto
+        ctx.strokeStyle = "#222"; ctx.lineWidth = 600; trackPath(ctx); ctx.stroke();
         
-        ctx.fillStyle = "white"; ctx.fillRect(2000, 1980, 500, 40); 
+        // 3. Línea de Meta (Vertical, dentro de la pista)
+        ctx.fillStyle = "white";
+        ctx.fillRect(1980, 1700, 40, 600); 
 
         particles.forEach((p, i) => {
             ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
@@ -360,24 +384,26 @@
         });
         ctx.globalAlpha = 1;
 
-        for(let id in otherPlayers){ let p = otherPlayers[id]; drawCar(p.x, p.y, p.angle, p.num, p.color || "red"); }
+        for(let id in otherPlayers){ let p = otherPlayers[id]; drawCar(p.x, p.y, p.angle, p.num, p.color); }
         drawCar(player.x, player.y, player.angle, playerNumber, player.color);
-        ctx.restore(); drawMinimap();
+        ctx.restore();
+        drawMinimap();
     }
 
     function drawCar(x, y, a, n, color) {
         ctx.save(); ctx.translate(x, y); ctx.rotate(a);
         ctx.fillStyle = color; ctx.fillRect(-55, -28, 110, 56);
         ctx.fillStyle = "black"; ctx.fillRect(15, -20, 25, 40);
-        ctx.fillStyle = "black"; ctx.font = "bold 24px Arial"; ctx.textAlign = "center"; ctx.fillText(n, -25, 8);
-        ctx.restore(); ctx.fillStyle = "white"; ctx.font = "bold 35px Arial"; ctx.textAlign = "center"; ctx.fillText("#" + n, x, y - 80);
+        ctx.fillStyle = "white"; ctx.font = "bold 24px Arial"; ctx.textAlign = "center"; ctx.fillText(n, -20, 10);
+        ctx.restore();
     }
 
     function drawMinimap() {
-        mCtx.clearRect(0,0, mCanvas.width, mCanvas.height); mCtx.save(); mCtx.translate(50, 50); let s = 0.02;
-        mCtx.strokeStyle = "rgba(255,255,255,0.3)"; mCtx.lineWidth = 10; trackPath(mCtx, s); mCtx.stroke();
-        for(let id in otherPlayers) { mCtx.fillStyle = otherPlayers[id].color || "red"; mCtx.beginPath(); mCtx.arc(otherPlayers[id].x*s, otherPlayers[id].y*s, 3, 0, Math.PI*2); mCtx.fill(); }
-        mCtx.fillStyle = player.color; mCtx.beginPath(); mCtx.arc(player.x*s, player.y*s, 5, 0, Math.PI*2); mCtx.fill(); mCtx.restore();
+        mCtx.clearRect(0,0, mCanvas.width, mCanvas.height); 
+        mCtx.save(); mCtx.translate(40, 40); let s = 0.015;
+        mCtx.strokeStyle = "rgba(255,255,255,0.3)"; mCtx.lineWidth = 5; trackPath(mCtx, s); mCtx.stroke();
+        mCtx.fillStyle = player.color; mCtx.beginPath(); mCtx.arc(player.x*s, player.y*s, 4, 0, Math.PI*2); mCtx.fill(); 
+        mCtx.restore();
     }
 
     window.onkeydown = e => keys[e.key] = true;
@@ -386,3 +412,4 @@
 </script>
 </body>
 </html>
+
